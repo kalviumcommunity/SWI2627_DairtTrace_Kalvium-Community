@@ -52,3 +52,17 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to view th
 npm run build
 npm start
 ```
+
+### Logout and protected screens
+The auth service stores the current JWT in `sessionStorage` for the browser tab.
+Use `LogoutButton` to clear that client session and navigate to `/login`, and
+wrap authenticated screen content in `ProtectedScreen` so a missing session
+does not render protected content.
+
+Run the logout/session tests with:
+```bash
+npm test
+```
+
+This client-side logout clears the browser's token; backend token revocation and
+authentication endpoints are not implemented in this repository yet.
