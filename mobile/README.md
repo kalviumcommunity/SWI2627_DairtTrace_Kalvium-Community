@@ -15,10 +15,3 @@ The Flutter application was created using:
 
 ```bash
 flutter create mobile
-```
-
-## Firebase integration
-
-Firebase is not currently configured for this app. See the [Firebase integration validation guide](../docs/setup/firebase-integration-validation.md)
-for the current findings, setup prerequisites, and checks required before Firebase
-initialization can be considered validated.
