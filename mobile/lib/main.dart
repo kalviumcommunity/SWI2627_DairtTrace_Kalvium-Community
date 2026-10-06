@@ -94,219 +94,53 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
 
   @override
   Widget build(BuildContext context) {
+    // This method is rerun every time setState is called, for instance as done
+    // by the _incrementCounter method above.
+    //
+    // The Flutter framework has been optimized to make rerunning build methods
+    // fast, so that you can just rebuild anything that needs updating rather
+    // than having to individually change instances of widgets.
     return Scaffold(
       appBar: AppBar(
-        title: const Text('DairyTrace'),
-        centerTitle: true,
+        // TRY THIS: Try changing the color here to a specific color (to
+        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
+        // change color while the other colors stay the same.
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        // Here we take the value from the MyHomePage object that was created by
+        // the App.build method, and use it to set our appbar title.
+        title: Text(widget.title),
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Milk Collection',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(height: 8),
-
-                Text(
-                  'Record today\'s milk collection.',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey.shade700,
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                TextFormField(
-                  controller: _farmerController,
-                  decoration: const InputDecoration(
-                    labelText: 'Farmer Name',
-                    hintText: 'Enter farmer name',
-                    prefixIcon: Icon(Icons.person_outline),
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Please enter the farmer name.';
-                    }
-
-                    if (value.trim().length < 2) {
-                      return 'Farmer name must be at least 2 characters.';
-                    }
-
-                    return null;
-                  },
-                ),
-
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  controller: _quantityController,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(
-                    labelText: 'Milk Quantity',
-                    hintText: 'Enter quantity',
-                    suffixText: 'Litres',
-                    prefixIcon: Icon(Icons.water_drop_outlined),
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Please enter the milk quantity.';
-                    }
-
-                    final quantity = double.tryParse(value);
-
-                    if (quantity == null) {
-                      return 'Please enter a valid number.';
-                    }
-
-                    if (quantity <= 0) {
-                      return 'Quantity must be greater than 0.';
-                    }
-
-                    return null;
-                  },
-                ),
-
-                const SizedBox(height: 20),
-
-                if (_isLoading)
-                  const Card(
-                    child: Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                            ),
-                          ),
-                          SizedBox(width: 14),
-                          Text('Recording milk collection...'),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                if (_errorMessage != null)
-                  Card(
-                    color: Colors.red.shade50,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.error_outline,
-                            color: Colors.red.shade700,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              _errorMessage!,
-                              style: TextStyle(
-                                color: Colors.red.shade700,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                if (_successMessage != null)
-                  Card(
-                    color: Colors.green.shade50,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.check_circle_outline,
-                            color: Colors.green.shade700,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              _successMessage!,
-                              style: TextStyle(
-                                color: Colors.green.shade700,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                const SizedBox(height: 20),
-
-                if (!_isLoading &&
-                    _errorMessage == null &&
-                    _successMessage == null)
-                  const Center(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 20),
-                      child: Column(
-                        children: [
-                          Icon(
-                            Icons.inbox_outlined,
-                            size: 48,
-                            color: Colors.grey,
-                          ),
-                          SizedBox(height: 8),
-                          Text(
-                            'No collection recorded yet.',
-                            style: TextStyle(
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                const SizedBox(height: 12),
-
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: _isLoading ? null : _submitCollection,
-                    icon: const Icon(Icons.save_outlined),
-                    label: Text(
-                      _isLoading
-                          ? 'Saving...'
-                          : 'Record Collection',
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 10),
-
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: _isLoading ? null : _clearForm,
-                    child: const Text('Clear'),
-                  ),
-                ),
-              ],
+      body: Center(
+        // Center is a layout widget. It takes a single child and positions it
+        // in the middle of the parent.
+        child: Column(
+          // Column is also a layout widget. It takes a list of children and
+          // arranges them vertically. By default, it sizes itself to fit its
+          // children horizontally, and tries to be as tall as its parent.
+          //
+          // Column has various properties to control how it sizes itself and
+          // how it positions its children. Here we use mainAxisAlignment to
+          // center the children vertically; the main axis here is the vertical
+          // axis because Columns are vertical (the cross axis would be
+          // horizontal).
+          //
+          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
+          // action in the IDE, or press "p" in the console), to see the
+          // wireframe for each widget.
+          mainAxisAlignment: .center,
+          children: [
+            const Text('You have pushed the button this many times:'),
+            Text(
+              '$_counter',
+              style: Theme.of(context).textTheme.headlineMedium,
             ),
-          ),
+          ],
         ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _incrementCounter,
+        tooltip: 'Increment',
+        child: const Icon(Icons.add),
       ),
     );
   }
