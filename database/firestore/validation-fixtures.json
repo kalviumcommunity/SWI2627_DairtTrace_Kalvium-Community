@@ -1,0 +1,300 @@
+{
+  "fixtureVersion": 1,
+  "description": "Synthetic DairyTrace Firestore validation data. ISO-8601 timestamp strings must be converted to Firestore Timestamp values by a test harness.",
+  "seedDocuments": {
+    "users": [
+      {
+        "id": "operator-001",
+        "displayName": "Test Operator",
+        "role": "OPERATOR",
+        "isActive": true
+      },
+      {
+        "id": "quality-001",
+        "displayName": "Test Quality Staff",
+        "role": "QUALITY_STAFF",
+        "isActive": true
+      },
+      {
+        "id": "manager-001",
+        "displayName": "Test Manager",
+        "role": "MANAGER",
+        "isActive": true
+      }
+    ],
+    "collectionCenters": [
+      {
+        "id": "center-001",
+        "centerCode": "CENTER-TEST-01",
+        "name": "Test Collection Center",
+        "location": "Test Village",
+        "status": "ACTIVE",
+        "createdAt": "2026-10-07T06:00:00Z",
+        "updatedAt": "2026-10-07T06:00:00Z"
+      }
+    ],
+    "farmers": [
+      {
+        "id": "farmer-001",
+        "farmerCode": "FMR-TEST-001",
+        "name": "Synthetic Farmer One",
+        "phone": "+910000000001",
+        "village": "Test Village",
+        "centerId": "center-001",
+        "userId": null,
+        "status": "ACTIVE",
+        "createdAt": "2026-10-01T00:00:00Z",
+        "updatedAt": "2026-10-01T00:00:00Z"
+      },
+      {
+        "id": "farmer-002",
+        "farmerCode": "FMR-TEST-002",
+        "name": "Synthetic Farmer Two",
+        "phone": "+910000000002",
+        "village": "Test Village",
+        "centerId": "center-001",
+        "userId": null,
+        "status": "ACTIVE",
+        "createdAt": "2026-10-01T00:00:00Z",
+        "updatedAt": "2026-10-01T00:00:00Z"
+      }
+    ],
+    "qualityParameters": [
+      {
+        "id": "snf-minimum",
+        "parameter": "SNF",
+        "unit": "PERCENT",
+        "minimum": 8.5,
+        "maximum": null,
+        "isActive": true,
+        "effectiveFrom": "2026-10-01"
+      }
+    ],
+    "milkCollections": [
+      {
+        "id": "COL-20261007-00001",
+        "farmerId": "farmer-001",
+        "centerId": "center-001",
+        "operatorId": "operator-001",
+        "collectionDate": "2026-10-07",
+        "collectionTime": "2026-10-07T06:20:00Z",
+        "session": "MORNING",
+        "quantityLiters": 16.5,
+        "batchId": "BATCH-20261007-00001",
+        "createdAt": "2026-10-07T06:20:00Z",
+        "updatedAt": "2026-10-07T06:20:00Z"
+      },
+      {
+        "id": "COL-20261007-00002",
+        "farmerId": "farmer-002",
+        "centerId": "center-001",
+        "operatorId": "operator-001",
+        "collectionDate": "2026-10-07",
+        "collectionTime": "2026-10-07T06:25:00Z",
+        "session": "MORNING",
+        "quantityLiters": 15.0,
+        "batchId": "BATCH-20261007-00001",
+        "createdAt": "2026-10-07T06:25:00Z",
+        "updatedAt": "2026-10-07T06:25:00Z"
+      }
+    ],
+    "qualityReadings": [
+      {
+        "id": "COL-20261007-00001",
+        "collectionId": "COL-20261007-00001",
+        "fatPercentage": 4.1,
+        "snfPercentage": 8.2,
+        "temperature": 4.0,
+        "adulterationDetected": false,
+        "recordedBy": "quality-001",
+        "recordedAt": "2026-10-07T06:30:00Z"
+      },
+      {
+        "id": "COL-20261007-00002",
+        "collectionId": "COL-20261007-00002",
+        "fatPercentage": 4.3,
+        "snfPercentage": 8.7,
+        "temperature": 4.1,
+        "adulterationDetected": false,
+        "recordedBy": "quality-001",
+        "recordedAt": "2026-10-07T06:32:00Z"
+      }
+    ],
+    "qualityAlerts": [
+      {
+        "id": "alert-001",
+        "collectionId": "COL-20261007-00001",
+        "parameter": "SNF",
+        "observedValue": 8.2,
+        "thresholdValue": 8.5,
+        "status": "OPEN",
+        "createdAt": "2026-10-07T06:30:00Z",
+        "resolvedAt": null,
+        "resolvedBy": null
+      }
+    ],
+    "batches": [
+      {
+        "id": "BATCH-20261007-00001",
+        "centerId": "center-001",
+        "batchDate": "2026-10-07",
+        "session": "MORNING",
+        "status": "FAILED",
+        "qualityResult": "FAILED",
+        "testedBy": "quality-001",
+        "testedAt": "2026-10-07T07:00:00Z",
+        "notes": "Synthetic failed-batch traceability fixture.",
+        "createdAt": "2026-10-07T06:40:00Z",
+        "updatedAt": "2026-10-07T07:00:00Z"
+      }
+    ],
+    "pricingRules": [
+      {
+        "id": "pricing-001",
+        "name": "Synthetic standard rate",
+        "minFat": null,
+        "maxFat": null,
+        "minSnf": null,
+        "maxSnf": null,
+        "ratePerLiter": 32.5,
+        "effectiveFrom": "2026-10-01",
+        "effectiveTo": null,
+        "isActive": true,
+        "createdAt": "2026-10-01T00:00:00Z"
+      }
+    ],
+    "reconciliations": [
+      {
+        "id": "recon-2026-10",
+        "periodStart": "2026-10-01",
+        "periodEnd": "2026-10-31",
+        "status": "OPEN",
+        "finalizedBy": null,
+        "finalizedAt": null,
+        "createdAt": "2026-10-07T08:00:00Z"
+      }
+    ],
+    "reconciliationItems": [
+      {
+        "id": "recon-2026-10-farmer-001",
+        "reconciliationId": "recon-2026-10",
+        "farmerId": "farmer-001",
+        "totalQuantityLiters": 16.5,
+        "averageFat": 4.1,
+        "averageSnf": 8.2,
+        "calculatedAmount": 536.25,
+        "createdAt": "2026-10-07T08:00:00Z"
+      }
+    ],
+    "disputes": [
+      {
+        "id": "dispute-001",
+        "farmerId": "farmer-001",
+        "collectionId": "COL-20261007-00001",
+        "reconciliationItemId": null,
+        "description": "Synthetic test dispute about recorded quantity.",
+        "status": "OPEN",
+        "raisedAt": "2026-10-07T08:10:00Z",
+        "resolvedBy": null,
+        "resolvedAt": null,
+        "resolutionNotes": null
+      }
+    ],
+    "auditLogs": [
+      {
+        "id": "audit-001",
+        "userId": "manager-001",
+        "action": "COLLECTION_UPDATED",
+        "entityType": "milkCollections",
+        "entityId": "COL-20261007-00001",
+        "oldValue": {
+          "quantityLiters": 16.0
+        },
+        "newValue": {
+          "quantityLiters": 16.5
+        },
+        "reason": "Synthetic audit validation fixture.",
+        "createdAt": "2026-10-07T08:15:00Z"
+      }
+    ]
+  },
+  "validationCases": [
+    {
+      "id": "valid-collection",
+      "documentPath": "milkCollections/COL-20261007-00001",
+      "changes": {},
+      "expected": "accept",
+      "rule": "Required farmer, center, operator, timestamp, valid session, positive quantity, and existing references."
+    },
+    {
+      "id": "missing-farmer-reference",
+      "documentPath": "milkCollections/COL-20261007-00001",
+      "changes": {
+        "farmerId": "farmer-does-not-exist"
+      },
+      "expected": "reject",
+      "rule": "BR-01 and NFR-02: collections must reference an existing farmer."
+    },
+    {
+      "id": "invalid-session",
+      "documentPath": "milkCollections/COL-20261007-00001",
+      "changes": {
+        "session": "NIGHT"
+      },
+      "expected": "reject",
+      "rule": "FR-05: session must be MORNING or EVENING."
+    },
+    {
+      "id": "non-positive-quantity",
+      "documentPath": "milkCollections/COL-20261007-00001",
+      "changes": {
+        "quantityLiters": 0
+      },
+      "expected": "reject",
+      "rule": "BR-05: quantity is required; application validation should require a value greater than zero."
+    },
+    {
+      "id": "quality-below-threshold",
+      "documentPath": "qualityReadings/COL-20261007-00001",
+      "changes": {},
+      "expected": "accept-with-alert",
+      "rule": "FR-07 and FR-08: SNF 8.2 is below configured minimum 8.5 and must create a linked alert."
+    },
+    {
+      "id": "orphan-quality-reading",
+      "documentPath": "qualityReadings/collection-does-not-exist",
+      "changes": {
+        "collectionId": "collection-does-not-exist"
+      },
+      "expected": "reject",
+      "rule": "NFR-02: a quality reading must reference an existing collection."
+    },
+    {
+      "id": "duplicate-quality-reading",
+      "documentPath": "qualityReadings/COL-20261007-00001-duplicate",
+      "changes": {
+        "collectionId": "COL-20261007-00001"
+      },
+      "expected": "reject",
+      "rule": "Database design: each collection has one quality reading; enforce uniqueness transactionally."
+    },
+    {
+      "id": "failed-batch-traceability",
+      "documentPath": "batches/BATCH-20261007-00001",
+      "changes": {},
+      "expected": "accept",
+      "rule": "FR-12 and BR-09: querying milkCollections by batchId must return both contributing collections and their farmers."
+    },
+    {
+      "id": "finalized-reconciliation-edit",
+      "documentPath": "reconciliations/recon-2026-10",
+      "changes": {
+        "status": "FINALIZED",
+        "finalizedBy": "manager-001",
+        "finalizedAt": "2026-10-31T17:00:00Z"
+      },
+      "expected": "accept-with-audit",
+      "rule": "BR-07 and BR-08: authorized finalization must create an audit record; later edits require authorization and audit."
+    }
+  ]
+}
