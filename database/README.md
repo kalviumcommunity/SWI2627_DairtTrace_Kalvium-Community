@@ -7,6 +7,8 @@ This directory contains relational database assets for DairyTrace.
 - `schema/`: Initial DDL definitions, tables, indexes, and constraints.
 - `migrations/`: Incremental Flyway / Liquibase or SQL migration scripts.
 - `seed/`: Initial seed data (default roles, milk quality parameter thresholds, test cooperative centers, sample farmers).
+
+The active database design is PostgreSQL. The proposed Firestore fixture and its local consistency checks are in `seed/firestore-validation-fixtures.json` and `seed/firestore-validation.test.mjs`; review scope and Firestore-specific gaps are documented in [the Firestore validation review](../docs/database/FIRESTORE-VALIDATION.md). These files do not represent a deployed Firestore schema or security rules.
 ## Flutter Mobile App Setup
 
 The DairyTrace project includes a Flutter-based mobile frontend for dairy collection and traceability workflows.
