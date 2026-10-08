@@ -2,6 +2,8 @@
 
 This directory contains relational database assets for DairyTrace.
 
+The active DairyTrace backend uses PostgreSQL. This directory also contains supplementary validation material.
+
 ## Structure
 
 - `schema/`: Initial DDL definitions, tables, indexes, and constraints.
