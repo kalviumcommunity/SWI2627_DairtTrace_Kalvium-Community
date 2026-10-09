@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1002495583309",
+    "project_id": "dairytrace-9862d",
+    "storage_bucket": "dairytrace-9862d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1002495583309:android:1401f1913b84ccbd1ae804",
+        "android_client_info": {
+          "package_name": "com.example.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBzcPTNIJG6yEw8Oseww_vLKI9FgKrdXIs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
