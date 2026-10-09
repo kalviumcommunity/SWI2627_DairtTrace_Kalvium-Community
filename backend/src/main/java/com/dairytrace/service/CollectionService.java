@@ -1,8 +1,14 @@
+
 package com.dairytrace.service;
 
+import com.dairytrace.dto.CollectionListResponse;
 import com.dairytrace.dto.CollectionRequest;
 import com.dairytrace.model.Collection;
 import com.dairytrace.repository.CollectionRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -43,5 +49,42 @@ public class CollectionService {
         collection.setUpdatedAt(now);
 
         return collectionRepository.save(collection);
+    }
+
+    public CollectionListResponse getCollections(int page, int size) {
+
+        if (page < 0) {
+            throw new IllegalArgumentException(
+                    "Page must be zero or greater"
+            );
+        }
+
+        if (size < 1 || size > 100) {
+            throw new IllegalArgumentException(
+                    "Size must be between 1 and 100"
+            );
+        }
+
+        Pageable pageable = PageRequest.of(
+                page,
+                size,
+                Sort.by(Sort.Direction.DESC, "collectionDate")
+                        .and(Sort.by(
+                                Sort.Direction.DESC,
+                                "createdAt"
+                        ))
+        );
+
+        Page<Collection> result =
+                collectionRepository.findAll(pageable);
+
+        return new CollectionListResponse(
+                result.getContent(),
+                result.getNumber(),
+                result.getSize(),
+                result.getTotalElements(),
+                result.getTotalPages(),
+                result.hasNext()
+        );
     }
 }

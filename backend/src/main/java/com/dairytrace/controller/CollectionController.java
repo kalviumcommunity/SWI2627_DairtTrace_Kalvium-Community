@@ -1,5 +1,7 @@
+
 package com.dairytrace.controller;
 
+import com.dairytrace.dto.CollectionListResponse;
 import com.dairytrace.dto.CollectionRequest;
 import com.dairytrace.model.Collection;
 import com.dairytrace.service.CollectionService;
@@ -28,5 +30,16 @@ public class CollectionController {
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(collection);
+    }
+
+    @GetMapping
+    public ResponseEntity<CollectionListResponse> getCollections(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        CollectionListResponse response =
+                collectionService.getCollections(page, size);
+
+        return ResponseEntity.ok(response);
     }
 }
