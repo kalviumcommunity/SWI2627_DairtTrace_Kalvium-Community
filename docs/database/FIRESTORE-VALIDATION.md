@@ -43,10 +43,23 @@ The provided `finalized-reconciliation-edit` case currently represents an author
 
 `database/seed/firestore-validation-fixtures.json` contains synthetic documents for all 13 proposed collections and nine validation scenarios. It covers valid and invalid collection writes, a threshold-triggered quality alert, orphan/duplicate quality readings, failed-batch traceability, and audited reconciliation finalization.
 
-Run the dependency-free fixture consistency checks from the repository root:
+### Application-model mapping check
+
+The fixture is not directly compatible with the current application collection model. The backend is PostgreSQL/JPA; there is no Firestore adapter or model set for all 13 candidate collections. The focused mapping check inspects the existing `Collection` entity and `CollectionRequest` DTO alongside the two fixture collection documents. It verifies the current model contract and records these required decisions before claiming a successful mapping:
+
+| Fixture field/value | Current application model | Mapping outcome / edge case |
+|---|---|---|
+| `id` (for example `COL-20261007-00001`) | `Collection.id` is a generated UUID; request uses `collectionCode` | Treat fixture `id` as `collectionCode`; it cannot populate the generated UUID `id`. |
+| `farmerId`, `centerId`, `operatorId`, `batchId` (human-readable IDs) | UUID fields in the entity/request | Not parseable as UUIDs. Define a stable identifier translation or align fixture/backend IDs before deserialization. |
+| `collectionDate` (`YYYY-MM-DD`) | `LocalDate` | Shape is compatible. |
+| `collectionTime`, `createdAt`, `updatedAt` (UTC strings ending in `Z`) | `LocalDateTime` in the entity; request has `LocalDateTime collectionTime` | Offset-aware values need an explicit UTC-to-local conversion policy, or the model should use an offset-aware type. Do not silently drop the offset. The request has no client-supplied audit timestamps; the service sets them itself. |
+| `quantityLiters` (JSON number) | `BigDecimal` | Preserve decimal precision during JSON binding; avoid routing through a binary floating-point conversion. |
+| Other 12 candidate collections | No corresponding backend model/DTO found | Their mapping remains unverified; this check only covers milk collections. |
+
+The dependency-free fixture consistency and model-contract checks can be run from the repository root:
 
 ```bash
-node --test database/seed/firestore-validation.test.mjs
+node --test database/seed/*.test.mjs
 ```
 
-These tests verify fixture shape, unique IDs, reference integrity, supported values, timestamp interchange values, and required validation scenarios. They do **not** execute Firestore security rules, indexes, transactions, or emulator behavior. Those require a concrete Firestore schema/rules implementation and Firebase Emulator Suite configuration.
+These tests verify fixture shape, unique IDs, reference integrity, supported values, timestamp interchange values, required validation scenarios, and the specific incompatibilities between the fixture collections and current backend model types. They do not prove a successful Firestore-to-application deserialization. They also do **not** execute Firestore security rules, indexes, transactions, or emulator behavior. Those require a concrete Firestore schema/rules implementation and Firebase Emulator Suite configuration.
