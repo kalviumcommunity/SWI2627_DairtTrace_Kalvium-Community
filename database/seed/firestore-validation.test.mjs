@@ -260,3 +260,60 @@ test("validation cases cover representative acceptance, rejection, and workflow 
     assert.ok(validationCase.rule.length > 0);
   }
 });
+
+test("collection edit scenarios validate updates and read back the changed fixture state", () => {
+  const cases = new Map(fixture.validationCases.map((validationCase) => [validationCase.id, validationCase]));
+  const requiredCases = [
+    "valid-collection-edit",
+    "invalid-collection-edit-value",
+    "zero-quantity-collection-edit",
+    "non-numeric-collection-edit",
+    "missing-collection-edit",
+    "collection-edit-readback",
+  ];
+  for (const id of requiredCases) assert.ok(cases.has(id), `${id} scenario is required`);
+
+  const documents = new Map(
+    seed.milkCollections.map((document) => [
+      `milkCollections/${document.id}`,
+      structuredClone(document),
+    ]),
+  );
+  const applyEdit = ({ documentPath, changes }) => {
+    const document = documents.get(documentPath);
+    if (!document) return false;
+
+    if (
+      "quantityLiters" in changes &&
+      (!Number.isFinite(changes.quantityLiters) || changes.quantityLiters <= 0)
+    ) {
+      return false;
+    }
+
+    Object.assign(document, changes);
+    return true;
+  };
+
+  for (const id of requiredCases) {
+    const validationCase = cases.get(id);
+    const before = structuredClone(documents.get(validationCase.documentPath));
+    const accepted = applyEdit(validationCase);
+    assert.equal(accepted, validationCase.expected === "accept", `${id} outcome`);
+
+    if (!accepted) {
+      assert.deepEqual(
+        documents.get(validationCase.documentPath),
+        before,
+        `${id} must not mutate an existing document when rejected`,
+      );
+    }
+
+    if (validationCase.expectedAfter) {
+      const readBack = documents.get(validationCase.documentPath);
+      assert.ok(readBack, `${id} document must still exist on read-back`);
+      for (const [field, value] of Object.entries(validationCase.expectedAfter)) {
+        assert.deepEqual(readBack[field], value, `${id} read-back ${field}`);
+      }
+    }
+  }
+});
