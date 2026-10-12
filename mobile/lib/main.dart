@@ -22,14 +22,36 @@ class DairyTraceApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const emerald = Color(0xFF008D70);
+
     return MaterialApp(
       title: 'DairyTrace',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
+        colorScheme: ColorScheme.fromSeed(seedColor: emerald),
         useMaterial3: true,
-        inputDecorationTheme: const InputDecorationTheme(
-          border: OutlineInputBorder(),
+        scaffoldBackgroundColor: const Color(0xFFF7FAF8),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.white,
+          foregroundColor: Color(0xFF183C32),
+          surfaceTintColor: Colors.transparent,
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          filled: true,
+          fillColor: Colors.white,
+        ),
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            backgroundColor: emerald,
+            foregroundColor: Colors.white,
+            minimumSize: const Size.fromHeight(50),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
         ),
       ),
       home: const AuthGate(),
@@ -50,6 +72,14 @@ class AuthGate extends StatelessWidget {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return const Scaffold(
+            body: Center(
+              child: Text('Unable to check your account. Please try again.'),
+            ),
           );
         }
 
@@ -89,6 +119,8 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _authenticate() async {
+    FocusScope.of(context).unfocus();
+
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
@@ -117,7 +149,8 @@ class _LoginPageState extends State<LoginPage> {
       setState(() {
         _errorMessage = switch (error.code) {
           'invalid-email' => 'Please enter a valid email address.',
-          'user-not-found' || 'wrong-password' ||
+          'user-not-found' ||
+          'wrong-password' ||
           'invalid-credential' => 'Email or password is incorrect.',
           'email-already-in-use' => 'This email is already registered.',
           'weak-password' => 'Choose a stronger password.',
@@ -154,7 +187,7 @@ class _LoginPageState extends State<LoginPage> {
                   children: [
                     const Icon(
                       Icons.water_drop,
-                      color: Colors.green,
+                      color: Color(0xFF008D70),
                       size: 72,
                     ),
                     const SizedBox(height: 16),
@@ -164,6 +197,7 @@ class _LoginPageState extends State<LoginPage> {
                       style: TextStyle(
                         fontSize: 32,
                         fontWeight: FontWeight.bold,
+                        color: Color(0xFF183C32),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -176,6 +210,7 @@ class _LoginPageState extends State<LoginPage> {
                     const SizedBox(height: 32),
                     TextFormField(
                       controller: _emailController,
+                      enabled: !_isLoading,
                       keyboardType: TextInputType.emailAddress,
                       autofillHints: const [AutofillHints.email],
                       decoration: const InputDecoration(
@@ -183,11 +218,12 @@ class _LoginPageState extends State<LoginPage> {
                         prefixIcon: Icon(Icons.email_outlined),
                       ),
                       validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
+                        final email = value?.trim() ?? '';
+                        if (email.isEmpty) {
                           return 'Email is required.';
                         }
-                        if (!value.contains('@') ||
-                            !value.contains('.')) {
+                        if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+                            .hasMatch(email)) {
                           return 'Enter a valid email address.';
                         }
                         return null;
@@ -196,6 +232,7 @@ class _LoginPageState extends State<LoginPage> {
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _passwordController,
+                      enabled: !_isLoading,
                       obscureText: true,
                       autofillHints: const [AutofillHints.password],
                       decoration: const InputDecoration(
@@ -228,15 +265,14 @@ class _LoginPageState extends State<LoginPage> {
                         padding: const EdgeInsets.all(14),
                         child: _isLoading
                             ? const SizedBox(
-                                height: 20,
-                                width: 20,
+                                width: 22,
+                                height: 22,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
+                                  color: Colors.white,
                                 ),
                               )
-                            : Text(
-                                _isRegistering ? 'Register' : 'Sign In',
-                              ),
+                            : Text(_isRegistering ? 'Register' : 'Sign In'),
                       ),
                     ),
                     TextButton(
@@ -264,6 +300,8 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 }
+
+// -------------------- SPLASH SCREEN --------------------
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -296,13 +334,13 @@ class _SplashScreenState extends State<SplashScreen> {
     return Scaffold(
       body: Container(
         width: double.infinity,
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Colors.green.shade700,
-              Colors.green.shade400,
+              Color(0xFF006B54),
+              Color(0xFF23A581),
             ],
           ),
         ),
@@ -317,10 +355,10 @@ class _SplashScreenState extends State<SplashScreen> {
                   color: Colors.white,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
+                child: const Icon(
                   Icons.water_drop,
                   size: 58,
-                  color: Colors.green.shade600,
+                  color: Color(0xFF008D70),
                 ),
               ),
               const SizedBox(height: 28),
@@ -344,7 +382,7 @@ class _SplashScreenState extends State<SplashScreen> {
               ),
               const SizedBox(height: 42),
               const CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                color: Colors.white,
               ),
               const SizedBox(height: 16),
               const Text(
@@ -359,6 +397,7 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 }
 
+// -------------------- MILK COLLECTION --------------------
 
 class MilkCollectionPage extends StatefulWidget {
   const MilkCollectionPage({super.key});
@@ -398,7 +437,7 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
 
     try {
       await _collectionService.addCollection(
-        farmerName: _farmerController.text,
+        farmerName: _farmerController.text.trim(),
         quantityLitres: double.parse(_quantityController.text.trim()),
       );
 
@@ -406,6 +445,7 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
 
       _farmerController.clear();
       _quantityController.clear();
+      _formKey.currentState?.reset();
 
       setState(() {
         _successMessage = 'Collection saved successfully!';
@@ -435,147 +475,11 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('DairyTrace'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'Milk Collection',
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-
-              const SizedBox(height: 8),
-
-              const Text(
-                'Record today’s milk collection',
-                style: TextStyle(
-                  color: Colors.grey,
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              TextFormField(
-                controller: _farmerController,
-                decoration: const InputDecoration(
-                  labelText: 'Farmer Name',
-                  hintText: 'Enter farmer name',
-                  prefixIcon: Icon(Icons.person),
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Farmer name is required';
-                  }
-
-                  if (value.trim().length < 2) {
-                    return 'Farmer name must be at least 2 characters';
-                  }
-
-                  if (!RegExp(r'^[a-zA-Z ]+$').hasMatch(value.trim())) {
-                    return 'Farmer name can contain only letters';
-                  }
-
-                  return null;
-                },
-              ),
-
-              const SizedBox(height: 16),
-
-              TextFormField(
-                controller: _quantityController,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Milk Quantity (Litres)',
-                  hintText: 'Enter quantity',
-                  prefixIcon: Icon(Icons.water_drop),
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Milk quantity is required';
-                  }
-
-                  final quantity = double.tryParse(value.trim());
-
-                  if (quantity == null) {
-                    return 'Enter a valid number';
-                  }
-
-                  if (quantity <= 0) {
-                    return 'Quantity must be greater than 0';
-                  }
-
-                  return null;
-                },
-              ),
-
-              const SizedBox(height: 20),
-
-              if (_errorMessage != null)
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    _errorMessage!,
-                    style: TextStyle(
-                      color: Colors.red.shade700,
-                    ),
-                  ),
-                ),
-
-              if (_successMessage != null)
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    _successMessage!,
-                    style: TextStyle(
-                      color: Colors.green.shade700,
-                    ),
-                  ),
-                ),
-
-              const SizedBox(height: 20),
-
-              FilledButton(
-                onPressed: _isLoading ? null : _submitCollection,
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : const Text('Record Collection'),
-              ),
-
-              const SizedBox(height: 12),
-
-              OutlinedButton(
-                onPressed: _isLoading ? null : _clearForm,
-                child: const Text('Clear'),
-              ),
-            ],
-        centerTitle: true,
+        title: const Text(
+          'DairyTrace',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        centerTitle: false,
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -584,10 +488,11 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Text(
-                'Milk Collection',
+                'New Collection',
                 style: TextStyle(
-                  fontSize: 28,
+                  fontSize: 26,
                   fontWeight: FontWeight.bold,
+                  color: Color(0xFF183C32),
                 ),
               ),
               const SizedBox(height: 8),
@@ -595,24 +500,34 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
                 "Record today's milk collection.",
                 style: TextStyle(
                   color: Colors.grey.shade700,
-                  fontSize: 16,
+                  fontSize: 15,
                 ),
               ),
               const SizedBox(height: 24),
               Form(
                 key: _formKey,
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     TextFormField(
                       controller: _farmerController,
+                      enabled: !_isSaving,
+                      textCapitalization: TextCapitalization.words,
                       decoration: const InputDecoration(
                         labelText: 'Farmer Name',
                         hintText: 'Enter farmer name',
                         prefixIcon: Icon(Icons.person_outline),
                       ),
                       validator: (value) {
-                        if (value == null || value.trim().length < 2) {
-                          return 'Enter a farmer name with at least 2 characters.';
+                        final name = value?.trim() ?? '';
+                        if (name.isEmpty) {
+                          return 'Farmer name is required.';
+                        }
+                        if (name.length < 2) {
+                          return 'Enter at least 2 characters.';
+                        }
+                        if (!RegExp(r'^[a-zA-Z ]+$').hasMatch(name)) {
+                          return 'Use letters and spaces only.';
                         }
                         return null;
                       },
@@ -620,9 +535,9 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _quantityController,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
+                      enabled: !_isSaving,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
                       decoration: const InputDecoration(
                         labelText: 'Milk Quantity',
                         hintText: 'Enter quantity',
@@ -630,7 +545,11 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
                         prefixIcon: Icon(Icons.water_drop_outlined),
                       ),
                       validator: (value) {
-                        final quantity = double.tryParse(value?.trim() ?? '');
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Milk quantity is required.';
+                        }
+
+                        final quantity = double.tryParse(value.trim());
 
                         if (quantity == null ||
                             !quantity.isFinite ||
@@ -640,42 +559,43 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
                     SizedBox(
-                      width: double.infinity,
+                      height: 52,
                       child: FilledButton.icon(
                         onPressed: _isSaving ? null : _submitCollection,
                         icon: _isSaving
                             ? const SizedBox(
-                                width: 18,
-                                height: 18,
+                                width: 20,
+                                height: 20,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
+                                  color: Colors.white,
                                 ),
                               )
                             : const Icon(Icons.save_outlined),
                         label: Text(
-                          _isSaving ? 'Saving...' : 'Record Collection',
+                          _isSaving ? 'Saving...' : 'Save Collection',
                         ),
                       ),
                     ),
                   ],
                 ),
               ),
-              if (_successMessage != null) ...[
-                const SizedBox(height: 12),
-                Text(
-                  _successMessage!,
-                  style: const TextStyle(color: Colors.green),
+              if (_errorMessage != null) ...[
+                const SizedBox(height: 16),
+                _StatusMessage(
+                  message: _errorMessage!,
+                  color: Colors.red,
+                  icon: Icons.error_outline,
                 ),
               ],
-              if (_errorMessage != null) ...[
-                const SizedBox(height: 12),
-                Text(
-                  _errorMessage!,
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.error,
-                  ),
+              if (_successMessage != null) ...[
+                const SizedBox(height: 16),
+                _StatusMessage(
+                  message: _successMessage!,
+                  color: const Color(0xFF008D70),
+                  icon: Icons.check_circle_outline,
                 ),
               ],
               const SizedBox(height: 32),
@@ -684,6 +604,7 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
+                  color: Color(0xFF183C32),
                 ),
               ),
               const SizedBox(height: 12),
@@ -711,10 +632,16 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
         }
 
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
+          return const Card(
             child: Padding(
               padding: EdgeInsets.all(24),
-              child: CircularProgressIndicator(),
+              child: Column(
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 12),
+                  Text('Loading collections...'),
+                ],
+              ),
             ),
           );
         }
@@ -756,6 +683,7 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
                 : timestamp.toDate().toLocal().toString().substring(0, 16);
 
             return Card(
+              color: Colors.white,
               child: ListTile(
                 leading: CircleAvatar(
                   backgroundColor: Colors.green.shade100,
@@ -778,6 +706,42 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
           },
         );
       },
+    );
+  }
+}
+
+class _StatusMessage extends StatelessWidget {
+  const _StatusMessage({
+    required this.message,
+    required this.color,
+    required this.icon,
+  });
+
+  final String message;
+  final Color color;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(color: color),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
