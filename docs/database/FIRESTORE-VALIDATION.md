@@ -41,7 +41,9 @@ The provided `finalized-reconciliation-edit` case currently represents an author
 
 ## Prepared fixture and local checks
 
-`database/seed/firestore-validation-fixtures.json` contains synthetic documents for all 13 proposed collections and nine validation scenarios. It covers valid and invalid collection writes, a threshold-triggered quality alert, orphan/duplicate quality readings, failed-batch traceability, and audited reconciliation finalization.
+`database/seed/firestore-validation-fixtures.json` contains synthetic documents for all 13 proposed collections and fifteen validation scenarios. It covers valid and invalid collection writes and edits (including zero, negative, and non-numeric quantities), a missing-record edit, edit read-back, a threshold-triggered quality alert, orphan/duplicate quality readings, failed-batch traceability, and audited reconciliation finalization.
+
+The collection edit test applies fixture changes to an in-memory copy, confirms rejected edits leave that copy unchanged, and checks the expected document fields on read-back after an accepted edit. This verifies the fixture's update contract only; it does not execute an application update path, Firestore, or durable persistence across a process restart.
 
 ### Application-model mapping check
 
@@ -62,4 +64,4 @@ The dependency-free fixture consistency and model-contract checks can be run fro
 node --test database/seed/*.test.mjs
 ```
 
-These tests verify fixture shape, unique IDs, reference integrity, supported values, timestamp interchange values, required validation scenarios, and the specific incompatibilities between the fixture collections and current backend model types. They do not prove a successful Firestore-to-application deserialization. They also do **not** execute Firestore security rules, indexes, transactions, or emulator behavior. Those require a concrete Firestore schema/rules implementation and Firebase Emulator Suite configuration.
+These tests verify fixture shape, unique IDs, reference integrity, supported values, timestamp interchange values, required validation scenarios, modeled collection edit/read-back outcomes, and the specific incompatibilities between the fixture collections and current backend model types. They do not prove a successful Firestore-to-application deserialization. They also do **not** execute Firestore security rules, indexes, transactions, persistence, or emulator behavior. Those require a concrete Firestore schema/rules implementation and Firebase Emulator Suite configuration.
