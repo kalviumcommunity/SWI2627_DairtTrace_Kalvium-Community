@@ -254,6 +254,65 @@
       "rule": "BR-05: quantity is required; application validation should require a value greater than zero."
     },
     {
+      "id": "valid-collection-edit",
+      "documentPath": "milkCollections/COL-20261007-00001",
+      "changes": {
+        "quantityLiters": 17.25
+      },
+      "expected": "accept",
+      "rule": "An authorized edit with a finite, positive quantity updates the existing collection."
+    },
+    {
+      "id": "invalid-collection-edit-value",
+      "documentPath": "milkCollections/COL-20261007-00001",
+      "changes": {
+        "quantityLiters": -1
+      },
+      "expected": "reject",
+      "rule": "BR-05: edits must reject zero, negative, non-finite, or otherwise invalid quantities."
+    },
+    {
+      "id": "zero-quantity-collection-edit",
+      "documentPath": "milkCollections/COL-20261007-00001",
+      "changes": {
+        "quantityLiters": 0
+      },
+      "expected": "reject",
+      "rule": "BR-05: an edit cannot set the collection quantity to zero."
+    },
+    {
+      "id": "non-numeric-collection-edit",
+      "documentPath": "milkCollections/COL-20261007-00001",
+      "changes": {
+        "quantityLiters": "sixteen"
+      },
+      "expected": "reject",
+      "rule": "Collection quantity edits must use a finite numeric value."
+    },
+    {
+      "id": "missing-collection-edit",
+      "documentPath": "milkCollections/COL-DOES-NOT-EXIST",
+      "changes": {
+        "quantityLiters": 17.25
+      },
+      "expected": "reject",
+      "rule": "An update must reject a document path that does not identify an existing collection."
+    },
+    {
+      "id": "collection-edit-readback",
+      "documentPath": "milkCollections/COL-20261007-00002",
+      "changes": {
+        "quantityLiters": 18.25,
+        "updatedAt": "2026-10-07T09:00:00Z"
+      },
+      "expected": "accept",
+      "expectedAfter": {
+        "quantityLiters": 18.25,
+        "updatedAt": "2026-10-07T09:00:00Z"
+      },
+      "rule": "After an accepted edit, reading the document back must return the updated quantity and update timestamp."
+    },
+    {
       "id": "quality-below-threshold",
       "documentPath": "qualityReadings/COL-20261007-00001",
       "changes": {},
