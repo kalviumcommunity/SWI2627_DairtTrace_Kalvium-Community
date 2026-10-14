@@ -637,6 +637,7 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
           return Card(
             child: Padding(
               padding: const EdgeInsets.all(20),
+              child: Text('Unable to load collections.\n${snapshot.error}'),
               child: const Text(
                 'Unable to load collections. Check your connection and try again.',
               ),
