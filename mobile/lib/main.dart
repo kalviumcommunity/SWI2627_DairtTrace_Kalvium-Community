@@ -1,4 +1,3 @@
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -10,15 +9,67 @@ import 'services/collection_service.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  Object? initializationError;
 
-  runApp(const DairyTraceApp());
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (error, stackTrace) {
+    initializationError = error;
+    debugPrint('Firebase initialization failed: $error');
+    debugPrintStack(stackTrace: stackTrace);
+  }
+
+  runApp(DairyTraceApp(initializationError: initializationError));
 }
 
+class FirebaseStartupErrorScreen extends StatelessWidget {
+  const FirebaseStartupErrorScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.cloud_off_rounded,
+                size: 64,
+                color: Colors.green,
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Unable to start DairyTrace',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'DairyTrace could not connect to its services. '
+                'Please check your internet connection and app '
+                'configuration, then restart the app.',
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// --------------------------------------------------
+// APP
+// --------------------------------------------------
+
 class DairyTraceApp extends StatelessWidget {
-  const DairyTraceApp({super.key});
+  const DairyTraceApp({super.key, this.initializationError});
+
+  final Object? initializationError;
 
   @override
   Widget build(BuildContext context) {
@@ -37,9 +88,7 @@ class DairyTraceApp extends StatelessWidget {
           surfaceTintColor: Colors.transparent,
         ),
         inputDecorationTheme: InputDecorationTheme(
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           filled: true,
           fillColor: Colors.white,
         ),
@@ -54,12 +103,16 @@ class DairyTraceApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const AuthGate(),
+      home: initializationError == null
+          ? const AuthGate()
+          : const FirebaseStartupErrorScreen(),
     );
   }
 }
 
-// -------------------- AUTHENTICATION GATE --------------------
+// --------------------------------------------------
+// AUTHENTICATION GATE
+// --------------------------------------------------
 
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
@@ -323,9 +376,7 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted) return;
 
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => const MilkCollectionPage(),
-      ),
+      MaterialPageRoute(builder: (_) => const MilkCollectionPage()),
     );
   }
 
@@ -338,10 +389,7 @@ class _SplashScreenState extends State<SplashScreen> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF006B54),
-              Color(0xFF23A581),
-            ],
+            colors: [Color(0xFF006B54), Color(0xFF23A581)],
           ),
         ),
         child: SafeArea(
@@ -375,20 +423,12 @@ class _SplashScreenState extends State<SplashScreen> {
               const Text(
                 'Tracking every drop from farm to table',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 16,
-                ),
+                style: TextStyle(color: Colors.white70, fontSize: 16),
               ),
               const SizedBox(height: 42),
-              const CircularProgressIndicator(
-                color: Colors.white,
-              ),
+              const CircularProgressIndicator(color: Colors.white),
               const SizedBox(height: 16),
-              const Text(
-                'Loading...',
-                style: TextStyle(color: Colors.white),
-              ),
+              const Text('Loading...', style: TextStyle(color: Colors.white)),
             ],
           ),
         ),
@@ -480,6 +520,25 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         centerTitle: false,
+        actions: [
+          IconButton(
+            tooltip: 'Sign out',
+            onPressed: () async {
+              try {
+                await FirebaseAuth.instance.signOut();
+              } catch (error) {
+                if (!context.mounted) return;
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Unable to sign out. Please try again.'),
+                  ),
+                );
+              }
+            },
+            icon: const Icon(Icons.logout_rounded),
+          ),
+        ],
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -498,10 +557,7 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
               const SizedBox(height: 8),
               Text(
                 "Record today's milk collection.",
-                style: TextStyle(
-                  color: Colors.grey.shade700,
-                  fontSize: 15,
-                ),
+                style: TextStyle(color: Colors.grey.shade700, fontSize: 15),
               ),
               const SizedBox(height: 24),
               Form(
@@ -520,15 +576,19 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
                       ),
                       validator: (value) {
                         final name = value?.trim() ?? '';
+
                         if (name.isEmpty) {
                           return 'Farmer name is required.';
                         }
+
                         if (name.length < 2) {
                           return 'Enter at least 2 characters.';
                         }
+
                         if (!RegExp(r'^[a-zA-Z ]+$').hasMatch(name)) {
                           return 'Use letters and spaces only.';
                         }
+
                         return null;
                       },
                     ),
@@ -536,8 +596,9 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
                     TextFormField(
                       controller: _quantityController,
                       enabled: !_isSaving,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       decoration: const InputDecoration(
                         labelText: 'Milk Quantity',
                         hintText: 'Enter quantity',
@@ -556,6 +617,7 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
                             quantity <= 0) {
                           return 'Enter a valid quantity greater than 0.';
                         }
+
                         return null;
                       },
                     ),
@@ -654,11 +716,7 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
               padding: EdgeInsets.all(24),
               child: Column(
                 children: [
-                  Icon(
-                    Icons.inbox_outlined,
-                    size: 44,
-                    color: Colors.grey,
-                  ),
+                  Icon(Icons.inbox_outlined, size: 44, color: Colors.grey),
                   SizedBox(height: 8),
                   Text('No collections yet. Record your first collection.'),
                 ],
@@ -687,10 +745,7 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
               child: ListTile(
                 leading: CircleAvatar(
                   backgroundColor: Colors.green.shade100,
-                  child: Icon(
-                    Icons.water_drop,
-                    color: Colors.green.shade800,
-                  ),
+                  child: Icon(Icons.water_drop, color: Colors.green.shade800),
                 ),
                 title: Text(farmerName),
                 subtitle: Text(dateText),
@@ -735,10 +790,7 @@ class _StatusMessage extends StatelessWidget {
           Icon(icon, color: color),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              message,
-              style: TextStyle(color: color),
-            ),
+            child: Text(message, style: TextStyle(color: color)),
           ),
         ],
       ),
