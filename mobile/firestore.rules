@@ -1,0 +1,58 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /collections/{collectionId} {
+      function signedIn() {
+        return request.auth != null;
+      }
+
+      function ownsExistingRecord() {
+        return signedIn()
+          && resource.data.createdBy == request.auth.uid;
+      }
+
+      function validFields(data) {
+        return data.keys().hasAll([
+          'farmerName',
+          'quantityLitres',
+          'collectionDate',
+          'createdAt',
+          'createdBy'
+        ])
+        && data.keys().hasOnly([
+          'farmerName',
+          'quantityLitres',
+          'collectionDate',
+          'createdAt',
+          'createdBy'
+        ])
+        && data.farmerName is string
+        && data.farmerName.size() >= 2
+        && data.farmerName.size() <= 100
+        && data.quantityLitres is number
+        && data.quantityLitres > 0
+        && data.createdBy is string;
+      }
+
+      allow read: if ownsExistingRecord();
+
+      allow create: if signedIn()
+        && validFields(request.resource.data)
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.collectionDate == request.time
+        && request.resource.data.createdAt == request.time;
+
+      allow update: if ownsExistingRecord()
+        && validFields(request.resource.data)
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.collectionDate == resource.data.collectionDate
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.diff(resource.data)
+             .affectedKeys()
+             .hasOnly(['farmerName', 'quantityLitres']);
+
+      allow delete: if ownsExistingRecord();
+    }
+  }
+}
