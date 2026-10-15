@@ -114,29 +114,90 @@ class DairyTraceApp extends StatelessWidget {
 // AUTHENTICATION GATE
 // --------------------------------------------------
 
-class AuthGate extends StatelessWidget {
+class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
+
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  late Stream<User?> _authStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _authStream = FirebaseAuth.instance.authStateChanges();
+  }
+
+  void _retryAuthentication() {
+    setState(() {
+      _authStream = FirebaseAuth.instance.authStateChanges();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
+      stream: _authStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        if (snapshot.hasError) {
-          return const Scaffold(
             body: Center(
-              child: Text('Unable to check your account. Please try again.'),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Checking your authentication...'),
+                ],
+              ),
             ),
           );
         }
 
-        if (snapshot.data != null) {
+        if (snapshot.hasError) {
+          return Scaffold(
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      size: 56,
+                      color: Colors.red,
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Unable to check your account',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Please check your connection and try again.',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 20),
+                    FilledButton(
+                      onPressed: _retryAuthentication,
+                      child: const Text('Try Again'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+
+        final user = snapshot.data;
+
+        if (user != null) {
           return const SplashScreen();
         }
 
