@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 import 'firebase_options.dart';
+import 'form_validators.dart';
 import 'models/collection.dart';
 import 'services/collection_service.dart';
 
@@ -27,7 +28,6 @@ Future<void> main() async {
 
 class FirebaseStartupErrorScreen extends StatelessWidget {
   const FirebaseStartupErrorScreen({super.key});
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   @override
   Widget build(BuildContext context) {
@@ -103,9 +103,6 @@ class DairyTraceApp extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
             ),
           ),
-        scaffoldBackgroundColor: const Color(0xFFF7F9F7),
-        inputDecorationTheme: const InputDecorationTheme(
-          border: OutlineInputBorder(),
         ),
       ),
       home: initializationError == null
@@ -142,7 +139,6 @@ class AuthGate extends StatelessWidget {
         }
 
         if (snapshot.data != null) {
-        if (snapshot.hasData) {
           return const SplashScreen();
         }
 
@@ -176,9 +172,6 @@ class _LoginPageState extends State<LoginPage> {
     FocusScope.of(context).unfocus();
 
     if (!_formKey.currentState!.validate()) return;
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
 
     setState(() {
       _isLoading = true;
@@ -257,16 +250,10 @@ class _LoginPageState extends State<LoginPage> {
                       color: Color(0xFF008D70),
                       size: 72,
                     ),
-                    const Icon(Icons.water_drop, size: 76, color: Colors.green),
                     const SizedBox(height: 16),
                     Text(
                       'DairyTrace',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF183C32),
-                      ),
                       style: Theme.of(context).textTheme.headlineMedium
                           ?.copyWith(fontWeight: FontWeight.bold),
                     ),
@@ -287,23 +274,7 @@ class _LoginPageState extends State<LoginPage> {
                         labelText: 'Email address',
                         prefixIcon: Icon(Icons.email_outlined),
                       ),
-                      validator: (value) {
-                        final email = value?.trim() ?? '';
-                        if (email.isEmpty) {
-                          return 'Email is required.';
-                        }
-
-                        if (email.isEmpty) {
-                          return 'Email is required.';
-                        }
-
-                        if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
-                            .hasMatch(email)) {
-                          return 'Enter a valid email address.';
-                        }
-
-                        return null;
-                      },
+                      validator: validateEmail,
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
@@ -315,19 +286,10 @@ class _LoginPageState extends State<LoginPage> {
                         labelText: 'Password',
                         prefixIcon: Icon(Icons.lock_outline),
                       ),
-                      validator: (value) {
-                        final password = value ?? '';
-
-                        if (password.isEmpty) {
-                          return 'Password is required.';
-                        }
-
-                        if (_isRegistering && password.length < 6) {
-                          return 'Password must be at least 6 characters.';
-                        }
-
-                        return null;
-                      },
+                      validator: (value) => validatePassword(
+                        value,
+                        isRegistering: _isRegistering,
+                      ),
                     ),
                     const SizedBox(height: 16),
                     if (_errorMessage != null) ...[
@@ -352,9 +314,6 @@ class _LoginPageState extends State<LoginPage> {
                                 ),
                               )
                             : Text(_isRegistering ? 'Register' : 'Sign In'),
-                            : Text(
-                                _isRegistering ? 'Create Account' : 'Sign In',
-                              ),
                       ),
                     ),
                     TextButton(
@@ -403,9 +362,6 @@ class _SplashScreenState extends State<SplashScreen> {
     Future.delayed(const Duration(seconds: 2), () {
       if (!mounted) return;
 
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const MilkCollectionPage()),
-    );
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const MilkCollectionPage()),
       );
@@ -463,27 +419,6 @@ class _SplashScreenState extends State<SplashScreen> {
               const Text('Loading...', style: TextStyle(color: Colors.white)),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-// -------------------- MILK COLLECTION --------------------
-    return const Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.water_drop, size: 80, color: Colors.green),
-            SizedBox(height: 16),
-            Text(
-              'DairyTrace',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 20),
-            CircularProgressIndicator(),
-          ],
         ),
       ),
     );
@@ -556,8 +491,6 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
 
     try {
       await _collectionService.addCollection(
-        farmerName: _farmerController.text.trim(),
-        quantityLitres: double.parse(_quantityController.text.trim()),
         farmerName: farmerName,
         quantityLitres: quantity,
       );
@@ -629,24 +562,6 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
           'DairyTrace',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
-        centerTitle: false,
-        actions: [
-          IconButton(
-            tooltip: 'Sign out',
-            onPressed: () async {
-              try {
-                await FirebaseAuth.instance.signOut();
-              } catch (error) {
-                if (!context.mounted) return;
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Unable to sign out. Please try again.'),
-                  ),
-                );
-              }
-            },
-            icon: const Icon(Icons.logout_rounded),
         centerTitle: true,
         actions: [
           IconButton(
@@ -690,23 +605,7 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
                         hintText: 'Enter farmer name',
                         prefixIcon: Icon(Icons.person_outline),
                       ),
-                      validator: (value) {
-                        final name = value?.trim() ?? '';
-
-                        if (name.isEmpty) {
-                          return 'Farmer name is required.';
-                        }
-
-                        if (name.length < 2) {
-                          return 'Enter at least 2 characters.';
-                        }
-
-                        if (!RegExp(r'^[a-zA-Z ]+$').hasMatch(name)) {
-                          return 'Use letters and spaces only.';
-                        }
-
-                        return null;
-                      },
+                      validator: validateFarmerName,
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
@@ -721,21 +620,7 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
                         suffixText: 'Litres',
                         prefixIcon: Icon(Icons.water_drop_outlined),
                       ),
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Milk quantity is required.';
-                        }
-
-                        final quantity = double.tryParse(value.trim());
-
-                        if (quantity == null ||
-                            !quantity.isFinite ||
-                            quantity <= 0) {
-                          return 'Enter a valid quantity greater than 0.';
-                        }
-
-                        return null;
-                      },
+                      validator: validateMilkQuantity,
                     ),
                     const SizedBox(height: 20),
                     SizedBox(
@@ -784,144 +669,10 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
                   fontWeight: FontWeight.bold,
                   color: Color(0xFF183C32),
                 ),
-          padding: const EdgeInsets.all(16),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 720),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Record Milk Collection',
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 20),
-                          Form(
-                            key: _formKey,
-                            child: Column(
-                              children: [
-                                TextFormField(
-                                  controller: _farmerController,
-                                  enabled: !_isSaving,
-                                  textCapitalization: TextCapitalization.words,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Farmer Name',
-                                    hintText: 'Enter farmer name',
-                                    prefixIcon: Icon(Icons.person_outline),
-                                  ),
-                                  validator: (value) {
-                                    final name = value?.trim() ?? '';
-
-                                    if (name.isEmpty) {
-                                      return 'Farmer name is required.';
-                                    }
-
-                                    if (name.length < 2) {
-                                      return 'Farmer name must be at least 2 characters.';
-                                    }
-
-                                    if (!RegExp(r'^[a-zA-Z ]+$')
-                                        .hasMatch(name)) {
-                                      return 'Use letters and spaces only.';
-                                    }
-
-                                    return null;
-                                  },
-                                ),
-                                const SizedBox(height: 16),
-                                TextFormField(
-                                  controller: _quantityController,
-                                  enabled: !_isSaving,
-                                  keyboardType:
-                                      const TextInputType.numberWithOptions(
-                                        decimal: true,
-                                      ),
-                                  decoration: const InputDecoration(
-                                    labelText: 'Milk Quantity',
-                                    hintText: 'Enter quantity',
-                                    suffixText: 'Litres',
-                                    prefixIcon: Icon(Icons.water_drop_outlined),
-                                  ),
-                                  validator: (value) {
-                                    if (value == null || value.trim().isEmpty) {
-                                      return 'Milk quantity is required.';
-                                    }
-
-                                    final quantity = double.tryParse(
-                                      value.trim(),
-                                    );
-
-                                    if (quantity == null ||
-                                        !quantity.isFinite ||
-                                        quantity <= 0) {
-                                      return 'Enter a valid quantity greater than 0.';
-                                    }
-
-                                    return null;
-                                  },
-                                ),
-                                const SizedBox(height: 20),
-                                if (_errorMessage != null) ...[
-                                  Text(
-                                    _errorMessage!,
-                                    style: const TextStyle(color: Colors.red),
-                                  ),
-                                  const SizedBox(height: 12),
-                                ],
-                                if (_successMessage != null) ...[
-                                  Text(
-                                    _successMessage!,
-                                    style: const TextStyle(color: Colors.green),
-                                  ),
-                                  const SizedBox(height: 12),
-                                ],
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: FilledButton.icon(
-                                    onPressed: _isSaving
-                                        ? null
-                                        : _submitCollection,
-                                    icon: _isSaving
-                                        ? const SizedBox(
-                                            width: 18,
-                                            height: 18,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                            ),
-                                          )
-                                        : const Icon(Icons.save_outlined),
-                                    label: Text(
-                                      _isSaving
-                                          ? 'Saving...'
-                                          : 'Save Collection',
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'Recent Collections',
-                    style: Theme.of(context).textTheme.titleLarge
-                        ?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildCollectionList(),
-                ],
               ),
-            ),
+              const SizedBox(height: 12),
+              _buildCollectionList(),
+            ],
           ),
         ),
       ),
@@ -938,7 +689,6 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
           return Card(
             child: Padding(
               padding: const EdgeInsets.all(20),
-              child: Text('Unable to load collections.\n${snapshot.error}'),
               child: const Text(
                 'Unable to load collections. Check your connection and try again.',
               ),
