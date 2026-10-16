@@ -512,16 +512,28 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
   final _farmerController = TextEditingController();
   final _quantityController = TextEditingController();
   final _collectionService = CollectionService();
+  late Stream<QuerySnapshot<Map<String, dynamic>>> _collectionsStream;
 
   bool _isSaving = false;
   String? _errorMessage;
   String? _successMessage;
+
 
   @override
   void dispose() {
     _farmerController.dispose();
     _quantityController.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshCollections();
+  }
+
+  void _refreshCollections() {
+    _collectionsStream = _collectionService.watchCollections();
   }
 
   Future<void> _submitCollection() async {
@@ -741,19 +753,44 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
 
   Widget _buildCollectionList() {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: _collectionService.watchCollections(),
+      stream: _collectionsStream,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return const Card(
+          return Card(
             child: Padding(
-              padding: EdgeInsets.all(20),
-              child: Text(
-                'Unable to load collections. Check your connection and permissions.',
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  const Icon(
+                    Icons.cloud_off_outlined,
+                    size: 40,
+                    color: Colors.red,
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Unable to load collections',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Check your internet connection or Firestore permissions, '
+                    'then try again.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey.shade700),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      setState(_refreshCollections);
+                    },
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Try Again'),
+                  ),
+                ],
               ),
             ),
           );
         }
-
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Card(
             child: Padding(
