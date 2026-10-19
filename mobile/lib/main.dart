@@ -117,7 +117,9 @@ class DairyTraceApp extends StatelessWidget {
 // --------------------------------------------------
 
 class AuthGate extends StatefulWidget {
-  const AuthGate({super.key});
+  const AuthGate({super.key, this.authStateChanges});
+
+  final Stream<User?> Function()? authStateChanges;
 
   @override
   State<AuthGate> createState() => _AuthGateState();
@@ -129,12 +131,17 @@ class _AuthGateState extends State<AuthGate> {
   @override
   void initState() {
     super.initState();
-    _authStream = FirebaseAuth.instance.authStateChanges();
+    _authStream = _createAuthStream();
+  }
+
+  Stream<User?> _createAuthStream() {
+    return widget.authStateChanges?.call() ??
+        FirebaseAuth.instance.authStateChanges();
   }
 
   void _retryAuthentication() {
     setState(() {
-      _authStream = FirebaseAuth.instance.authStateChanges();
+      _authStream = _createAuthStream();
     });
   }
 
@@ -159,9 +166,21 @@ class _AuthGateState extends State<AuthGate> {
         }
 
         if (snapshot.hasError) {
-          return const Scaffold(
+          return Scaffold(
             body: Center(
-              child: Text('Unable to check your account. Please try again.'),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Unable to check your account. Please try again.',
+                  ),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: _retryAuthentication,
+                    child: const Text('Try again'),
+                  ),
+                ],
+              ),
             ),
           );
         }
