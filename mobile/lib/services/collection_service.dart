@@ -67,4 +67,31 @@ class CollectionService {
               .toList(growable: false),
         );
   }
+  
+  /// Deletes a collection by its Firestore document ID.
+  ///
+  /// Firestore security rules must ensure that the signed-in user
+  /// owns the document before allowing the deletion.
+  Future<void> deleteCollection({
+    required String collectionId,
+  }) async {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      throw StateError(
+        'Please sign in before deleting a collection.',
+      );
+    }
+
+    final normalizedId = collectionId.trim();
+
+    if (normalizedId.isEmpty) {
+      throw ArgumentError(
+        'Collection ID cannot be empty.',
+      );
+    }
+
+    await _collections.doc(normalizedId).delete();
+  }
+
 }
