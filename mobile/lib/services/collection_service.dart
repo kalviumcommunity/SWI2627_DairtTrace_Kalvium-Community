@@ -1,10 +1,15 @@
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/collection.dart';
 
 class CollectionService {
+  CollectionService({FirebaseFirestore? firestore})
+    : _collections = (firestore ?? FirebaseFirestore.instance).collection(
+        'collections',
+      );
+
+  final CollectionReference<Map<String, dynamic>> _collections;
   CollectionService({
     FirebaseFirestore? firestore,
     FirebaseAuth? auth,
