@@ -517,12 +517,14 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
   bool _isSaving = false;
   String? _errorMessage;
   String? _successMessage;
+  final _searchController = TextEditingController();
 
 
   @override
   void dispose() {
     _farmerController.dispose();
     _quantityController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -743,7 +745,42 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
                 ),
               ),
               const SizedBox(height: 12),
-              _buildCollectionList(),
+SizedBox(
+  height: 48,
+  child: TextField(
+    controller: _searchController,
+    onChanged: (_) => setState(() {}),
+    decoration: InputDecoration(
+      hintText: 'Search farmer...',
+      prefixIcon: const Icon(
+        Icons.search,
+        color: Color(0xFF008D70),
+      ),
+      suffixIcon: _searchController.text.isEmpty
+          ? null
+          : IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: () {
+                _searchController.clear();
+                setState(() {});
+              },
+            ),
+      filled: true,
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey.shade300),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey.shade300),
+      ),
+    ),
+  ),
+),
+const SizedBox(height: 12),
+_buildCollectionList(),
             ],
           ),
         ),
@@ -806,22 +843,46 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
           );
         }
 
-        final documents = snapshot.data?.docs ?? [];
+        final documents = (snapshot.data?.docs ?? []).where((document) {
+          final farmerName =
+            (document.data()['farmerName'] as String? ?? '').toLowerCase();
+
+          return farmerName.contains(_searchController.text.trim().toLowerCase());
+        }).toList();
 
         if (documents.isEmpty) {
-          return const Card(
-            child: Padding(
-              padding: EdgeInsets.all(24),
-              child: Column(
-                children: [
-                  Icon(Icons.inbox_outlined, size: 44, color: Colors.grey),
-                  SizedBox(height: 8),
-                  Text('No collections yet. Record your first collection.'),
-                ],
-              ),
+  final isSearching = _searchController.text.trim().isNotEmpty;
+
+  return Card(
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        children: [
+          Icon(
+            isSearching ? Icons.search_off : Icons.inbox_outlined,
+            size: 44,
+            color: Colors.grey,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            isSearching
+                ? 'No matching collections found.'
+                : 'No collections yet. Record your first collection.',
+            textAlign: TextAlign.center,
+          ),
+          if (isSearching)
+            TextButton(
+              onPressed: () {
+                _searchController.clear();
+                setState(() {});
+              },
+              child: const Text('Clear search'),
             ),
-          );
-        }
+        ],
+      ),
+    ),
+  );
+}
 
         return ListView.separated(
           shrinkWrap: true,
