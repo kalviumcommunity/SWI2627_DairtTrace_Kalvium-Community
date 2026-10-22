@@ -146,6 +146,25 @@ class _AuthGateState extends State<AuthGate> {
   }
 
   @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  late Stream<User?> _authStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _authStream = FirebaseAuth.instance.authStateChanges();
+  }
+
+  void _retryAuthentication() {
+    setState(() {
+      _authStream = FirebaseAuth.instance.authStateChanges();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
       stream: _authStream,
@@ -185,7 +204,9 @@ class _AuthGateState extends State<AuthGate> {
           );
         }
 
-        if (snapshot.data != null) {
+        final user = snapshot.data;
+
+        if (user != null) {
           return const SplashScreen();
         }
 
@@ -507,6 +528,8 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
   bool _isSaving = false;
   String? _errorMessage;
   String? _successMessage;
+  final _searchController = TextEditingController();
+
 
   @override
   void initState() {
@@ -528,6 +551,16 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
 
   void _refreshCollections() {
     _collectionsStream = _createCollectionsStream();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshCollections();
+  }
+
+  void _refreshCollections() {
+    _collectionsStream = _collectionService.watchCollections();
   }
 
   Future<void> _submitCollection() async {
@@ -734,7 +767,42 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
                 ),
               ),
               const SizedBox(height: 12),
-              _buildCollectionList(),
+SizedBox(
+  height: 48,
+  child: TextField(
+    controller: _searchController,
+    onChanged: (_) => setState(() {}),
+    decoration: InputDecoration(
+      hintText: 'Search farmer...',
+      prefixIcon: const Icon(
+        Icons.search,
+        color: Color(0xFF008D70),
+      ),
+      suffixIcon: _searchController.text.isEmpty
+          ? null
+          : IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: () {
+                _searchController.clear();
+                setState(() {});
+              },
+            ),
+      filled: true,
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey.shade300),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey.shade300),
+      ),
+    ),
+  ),
+),
+const SizedBox(height: 12),
+_buildCollectionList(),
             ],
           ),
         ),
@@ -772,7 +840,6 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
             ),
           );
         }
-
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Card(
             child: Padding(
@@ -807,6 +874,47 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
             ),
           );
         }
+
+        final documents = (snapshot.data?.docs ?? []).where((document) {
+          final farmerName =
+            (document.data()['farmerName'] as String? ?? '').toLowerCase();
+
+          return farmerName.contains(_searchController.text.trim().toLowerCase());
+        }).toList();
+
+        if (documents.isEmpty) {
+  final isSearching = _searchController.text.trim().isNotEmpty;
+
+  return Card(
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        children: [
+          Icon(
+            isSearching ? Icons.search_off : Icons.inbox_outlined,
+            size: 44,
+            color: Colors.grey,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            isSearching
+                ? 'No matching collections found.'
+                : 'No collections yet. Record your first collection.',
+            textAlign: TextAlign.center,
+          ),
+          if (isSearching)
+            TextButton(
+              onPressed: () {
+                _searchController.clear();
+                setState(() {});
+              },
+              child: const Text('Clear search'),
+            ),
+        ],
+      ),
+    ),
+  );
+}
 
         return ListView.separated(
           shrinkWrap: true,
