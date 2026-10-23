@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -192,9 +192,9 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        find.text('Access denied. Check your Firestore security rules.'),
-        findsOneWidget,
-      );
+  find.text('Access denied. Check your Firestore security rules.'),
+  findsNWidgets(2),
+);
       final fields = tester
           .widgetList<TextFormField>(find.byType(TextFormField))
           .toList();

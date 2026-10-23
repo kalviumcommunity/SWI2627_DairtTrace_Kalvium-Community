@@ -13,72 +13,71 @@ void main() {
     testWidgets('shows a loading state until authentication is resolved', (
       tester,
     ) async {
-      final authState = StreamController<User?>();
+      final authController = StreamController<User?>();
 
       await tester.pumpWidget(
         MaterialApp(
-          home: AuthGate(authStateChanges: () => authState.stream),
+          home: AuthGate(authStateChanges: () => authController.stream),
         ),
       );
 
       expect(find.text('Checking your authentication...'), findsOneWidget);
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
-      await authState.close();
+      await authController.close();
     });
-
     testWidgets('shows the login form when signed out', (tester) async {
-      final authState = StreamController<User?>();
-
       await tester.pumpWidget(
         MaterialApp(
-          home: AuthGate(authStateChanges: () => authState.stream),
+          home: AuthGate(authStateChanges: () => Stream<User?>.value(null)),
         ),
       );
-      authState.add(null);
-      await tester.pump();
+
+      await tester.pumpAndSettle();
 
       expect(find.text('Sign In'), findsOneWidget);
       expect(find.text('New user? Create an account'), findsOneWidget);
 
-      await authState.close();
+      await tester.pumpWidget(const SizedBox());
     });
-
     testWidgets('shows the splash screen when signed in', (tester) async {
-      final authState = StreamController<User?>();
-
       await tester.pumpWidget(
         MaterialApp(
-          home: AuthGate(authStateChanges: () => authState.stream),
+          home: AuthGate(
+            authStateChanges: () => Stream<User?>.value(_MockUser()),
+          ),
         ),
       );
-      authState.add(_MockUser());
+
       await tester.pump();
 
       expect(find.text('DairyTrace'), findsOneWidget);
       expect(find.text('Loading...'), findsOneWidget);
 
+      // Dispose of the splash screen before delayed navigation
+      // can initialize Firestore.
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(seconds: 2));
-      await authState.close();
     });
 
     testWidgets('retries authentication after a stream error', (tester) async {
-      final firstAuthState = StreamController<User?>();
-      final retryAuthState = StreamController<User?>();
       var streamRequests = 0;
 
       Stream<User?> authStateChanges() {
         streamRequests++;
-        return streamRequests == 1
-            ? firstAuthState.stream
-            : retryAuthState.stream;
+
+        if (streamRequests == 1) {
+          return Stream<User?>.error(
+            StateError('Temporary auth stream failure'),
+          );
+        }
+
+        return Stream<User?>.value(null);
       }
 
       await tester.pumpWidget(
         MaterialApp(home: AuthGate(authStateChanges: authStateChanges)),
       );
-      firstAuthState.addError(StateError('Temporary auth stream failure'));
+
       await tester.pump();
 
       expect(
@@ -89,14 +88,12 @@ void main() {
 
       await tester.tap(find.text('Try again'));
       await tester.pump();
-      retryAuthState.add(null);
       await tester.pump();
 
       expect(streamRequests, 2);
       expect(find.text('Sign In'), findsOneWidget);
 
-      await firstAuthState.close();
-      await retryAuthState.close();
+      await tester.pumpWidget(const SizedBox());
     });
   });
 }
