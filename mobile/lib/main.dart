@@ -793,6 +793,19 @@ _buildCollectionList(),
       stream: _collectionsStream,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
+          final error = snapshot.error;
+
+          final isPermissionDenied =
+            error is FirebaseException && error.code == 'permission-denied';
+
+          final errorTitle = isPermissionDenied
+            ? 'Access denied'
+            : 'Unable to load collections';
+
+          final errorDescription = isPermissionDenied
+            ? 'You do not have permission to view these collections. '
+              'Please check your account access or contact your administrator.'
+            : 'Check your internet connection, then try again.';
           return Card(
             child: Padding(
               padding: const EdgeInsets.all(20),
@@ -803,15 +816,17 @@ _buildCollectionList(),
                     size: 40,
                     color: Colors.red,
                   ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Unable to load collections',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  Text(
+                    errorTitle,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Check your internet connection or Firestore permissions, '
-                    'then try again.',
+                    errorDescription,
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.grey.shade700),
                   ),
