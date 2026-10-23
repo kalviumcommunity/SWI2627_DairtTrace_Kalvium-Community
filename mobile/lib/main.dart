@@ -1,4 +1,3 @@
-
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -7,6 +6,7 @@ import 'firebase_options.dart';
 import 'form_validators.dart';
 import 'models/collection.dart';
 import 'services/collection_service.dart';
+import 'utils/user_feedback.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -135,6 +135,7 @@ class _AuthGateState extends State<AuthGate> {
   }
 
   Stream<User?> _createAuthStream() {
+    // Use the injected stream in tests; otherwise use Firebase.
     return widget.authStateChanges?.call() ??
         FirebaseAuth.instance.authStateChanges();
   }
@@ -142,25 +143,6 @@ class _AuthGateState extends State<AuthGate> {
   void _retryAuthentication() {
     setState(() {
       _authStream = _createAuthStream();
-    });
-  }
-
-  @override
-  State<AuthGate> createState() => _AuthGateState();
-}
-
-class _AuthGateState extends State<AuthGate> {
-  late Stream<User?> _authStream;
-
-  @override
-  void initState() {
-    super.initState();
-    _authStream = FirebaseAuth.instance.authStateChanges();
-  }
-
-  void _retryAuthentication() {
-    setState(() {
-      _authStream = FirebaseAuth.instance.authStateChanges();
     });
   }
 
@@ -190,9 +172,7 @@ class _AuthGateState extends State<AuthGate> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text(
-                    'Unable to check your account. Please try again.',
-                  ),
+                  const Text('Unable to check your account. Please try again.'),
                   const SizedBox(height: 12),
                   TextButton(
                     onPressed: _retryAuthentication,
@@ -501,11 +481,7 @@ class _SplashScreenState extends State<SplashScreen> {
 // --------------------------------------------------
 
 class MilkCollectionPage extends StatefulWidget {
-  const MilkCollectionPage({
-    super.key,
-    this.collectionService,
-    this.auth,
-  });
+  const MilkCollectionPage({super.key, this.collectionService, this.auth});
 
   final CollectionService? collectionService;
   final FirebaseAuth? auth;
@@ -530,7 +506,6 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
   String? _successMessage;
   final _searchController = TextEditingController();
 
-
   @override
   void initState() {
     super.initState();
@@ -551,16 +526,6 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
 
   void _refreshCollections() {
     _collectionsStream = _createCollectionsStream();
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _refreshCollections();
-  }
-
-  void _refreshCollections() {
-    _collectionsStream = _collectionService.watchCollections();
   }
 
   Future<void> _submitCollection() async {
@@ -600,32 +565,75 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
       setState(() {
         _successMessage = 'Collection saved successfully!';
       });
+      UserFeedback.showSuccess(
+        context,
+        message: 'Collection saved successfully!',
+      );
     } on FirebaseException catch (error, stackTrace) {
       debugPrint('Firestore save error: ${error.code} ${error.message}');
       debugPrintStack(stackTrace: stackTrace);
 
       if (!mounted) return;
 
-      setState(() {
-        _errorMessage = error.code == 'permission-denied'
-            ? 'Access denied. Check your Firestore security rules.'
-            : 'Could not save the collection. Please try again.';
-      });
+      final message = error.code == 'permission-denied'
+          ? 'Access denied. Check your Firestore security rules.'
+          : 'Could not save the collection. Please try again.';
+      setState(() => _errorMessage = message);
+      UserFeedback.showError(context, message: message);
     } catch (error, stackTrace) {
       debugPrint('Collection save error: $error');
       debugPrintStack(stackTrace: stackTrace);
 
       if (!mounted) return;
 
-      setState(() {
-        _errorMessage = error is ArgumentError || error is StateError
-            ? error.toString()
-            : 'Could not save the collection. Please try again.';
-      });
+      final message = error is ArgumentError || error is StateError
+          ? error.toString()
+          : 'Could not save the collection. Please try again.';
+      setState(() => _errorMessage = message);
+      UserFeedback.showError(context, message: message);
     } finally {
       if (mounted) {
         setState(() => _isSaving = false);
       }
+    }
+  }
+
+  Future<void> _deleteCollection(Collection collection) async {
+    final confirmed = await UserFeedback.confirm(
+      context,
+      title: 'Delete collection?',
+      message:
+          'Delete the collection for ${collection.farmerName}? This action cannot be undone.',
+      confirmText: 'Delete',
+      destructive: true,
+    );
+    if (!confirmed || !mounted) return;
+
+    try {
+      await _collectionService.deleteCollection(collectionId: collection.id);
+      if (!mounted) return;
+      UserFeedback.showSuccess(
+        context,
+        message: 'Collection deleted successfully.',
+      );
+    } on FirebaseException catch (error, stackTrace) {
+      debugPrint('Firestore delete error: ${error.code} ${error.message}');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) return;
+      UserFeedback.showError(
+        context,
+        message: error.code == 'permission-denied'
+            ? 'Access denied. You cannot delete this collection.'
+            : 'Could not delete the collection. Please try again.',
+      );
+    } catch (error, stackTrace) {
+      debugPrint('Collection delete error: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) return;
+      UserFeedback.showError(
+        context,
+        message: 'Could not delete the collection. Please try again.',
+      );
     }
   }
 
@@ -637,8 +645,9 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Unable to sign out. Please try again.')),
+      UserFeedback.showError(
+        context,
+        message: 'Unable to sign out. Please try again.',
       );
     }
   }
@@ -647,6 +656,7 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
   void dispose() {
     _farmerController.dispose();
     _quantityController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -767,42 +777,42 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
                 ),
               ),
               const SizedBox(height: 12),
-SizedBox(
-  height: 48,
-  child: TextField(
-    controller: _searchController,
-    onChanged: (_) => setState(() {}),
-    decoration: InputDecoration(
-      hintText: 'Search farmer...',
-      prefixIcon: const Icon(
-        Icons.search,
-        color: Color(0xFF008D70),
-      ),
-      suffixIcon: _searchController.text.isEmpty
-          ? null
-          : IconButton(
-              icon: const Icon(Icons.close),
-              onPressed: () {
-                _searchController.clear();
-                setState(() {});
-              },
-            ),
-      filled: true,
-      fillColor: Colors.white,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.grey.shade300),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.grey.shade300),
-      ),
-    ),
-  ),
-),
-const SizedBox(height: 12),
-_buildCollectionList(),
+              SizedBox(
+                height: 48,
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    hintText: 'Search farmer...',
+                    prefixIcon: const Icon(
+                      Icons.search,
+                      color: Color(0xFF008D70),
+                    ),
+                    suffixIcon: _searchController.text.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.close),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() {});
+                            },
+                          ),
+                    filled: true,
+                    fillColor: Colors.white,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              _buildCollectionList(),
             ],
           ),
         ),
@@ -855,74 +865,55 @@ _buildCollectionList(),
           );
         }
 
-        final collections = snapshot.data ?? [];
+        final collections = snapshot.data ?? <Collection>[];
+        final query = _searchController.text.trim().toLowerCase();
+        final filteredCollections = collections
+            .where(
+              (collection) =>
+                  collection.farmerName.toLowerCase().contains(query),
+            )
+            .toList();
 
-        if (collections.isEmpty) {
-          return const Card(
+        if (filteredCollections.isEmpty) {
+          final isSearching = query.isNotEmpty;
+          return Card(
             child: Padding(
-              padding: EdgeInsets.all(24),
+              padding: const EdgeInsets.all(24),
               child: Column(
                 children: [
-                  Icon(Icons.inbox_outlined, size: 44, color: Colors.grey),
-                  SizedBox(height: 8),
+                  Icon(
+                    isSearching ? Icons.search_off : Icons.inbox_outlined,
+                    size: 44,
+                    color: Colors.grey,
+                  ),
+                  const SizedBox(height: 8),
                   Text(
-                    'No collections yet. Record your first collection.',
+                    isSearching
+                        ? 'No matching collections found.'
+                        : 'No collections yet. Record your first collection.',
                     textAlign: TextAlign.center,
                   ),
+                  if (isSearching)
+                    TextButton(
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() {});
+                      },
+                      child: const Text('Clear search'),
+                    ),
                 ],
               ),
             ),
           );
         }
 
-        final documents = (snapshot.data?.docs ?? []).where((document) {
-          final farmerName =
-            (document.data()['farmerName'] as String? ?? '').toLowerCase();
-
-          return farmerName.contains(_searchController.text.trim().toLowerCase());
-        }).toList();
-
-        if (documents.isEmpty) {
-  final isSearching = _searchController.text.trim().isNotEmpty;
-
-  return Card(
-    child: Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        children: [
-          Icon(
-            isSearching ? Icons.search_off : Icons.inbox_outlined,
-            size: 44,
-            color: Colors.grey,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            isSearching
-                ? 'No matching collections found.'
-                : 'No collections yet. Record your first collection.',
-            textAlign: TextAlign.center,
-          ),
-          if (isSearching)
-            TextButton(
-              onPressed: () {
-                _searchController.clear();
-                setState(() {});
-              },
-              child: const Text('Clear search'),
-            ),
-        ],
-      ),
-    ),
-  );
-}
-
         return ListView.separated(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          itemCount: collections.length,
+          itemCount: filteredCollections.length,
           separatorBuilder: (_, _) => const SizedBox(height: 8),
           itemBuilder: (context, index) {
-            final collection = collections[index];
+            final collection = filteredCollections[index];
             final date = collection.collectionDate;
 
             final dateText = date == null
@@ -938,12 +929,22 @@ _buildCollectionList(),
                 ),
                 title: Text(collection.farmerName),
                 subtitle: Text(dateText),
-                trailing: Text(
-                  '${collection.quantityLitres.toStringAsFixed(2)} L',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                  ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${collection.quantityLitres.toStringAsFixed(2)} L',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Delete collection',
+                      icon: const Icon(Icons.delete_outline, color: Colors.red),
+                      onPressed: () => _deleteCollection(collection),
+                    ),
+                  ],
                 ),
               ),
             );
