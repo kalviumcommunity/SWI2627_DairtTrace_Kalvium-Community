@@ -4,6 +4,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/collection.dart';
 
 class CollectionService {
+  CollectionService({FirebaseFirestore? firestore})
+    : _collections = (firestore ?? FirebaseFirestore.instance).collection(
+        'collections',
+      );
+
+  final CollectionReference<Map<String, dynamic>> _collections;
   CollectionService({FirebaseFirestore? firestore, FirebaseAuth? auth})
     : _firestore = firestore ?? FirebaseFirestore.instance,
       _auth = auth ?? FirebaseAuth.instance;
