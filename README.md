@@ -11,59 +11,74 @@ DairyTrace is an end-to-end digital platform designed for dairy cooperatives to 
 ```text
 DairyTrace/
 │
-├── README.md                   # Project overview and setup documentation
-├── PRD.md                      # Product Requirements Document
-├── .gitignore                  # Git ignore specifications
-├── docker-compose.yml          # Multi-container local orchestration
+├── README.md                    # Project overview and setup documentation
+├── PRD.md                       # Product requirements document
+├── .gitignore                   # Git ignore specifications
+├── docker-compose.yml           # Local container orchestration
 │
-├── frontend/                   # Frontend web application (Next.js / React)
-│   ├── README.md               # Frontend setup and architecture guide
-│   ├── package.json            # Node.js dependencies and scripts
-│   ├── src/
-│   │   ├── app/                # Application routes (login, dashboard, farmers, etc.)
-│   │   ├── components/         # Reusable UI, layout, forms, tables, and charts
-│   │   ├── services/           # API integration and client services
-│   │   ├── hooks/              # Custom React hooks
-│   │   ├── lib/                # Shared utilities and helper functions
-│   │   └── types/              # TypeScript interface & type definitions
-│   └── public/                 # Static assets
-│
-├── backend/                    # Backend API service (Java / Spring Boot)
-│   ├── README.md               # Backend architecture and setup instructions
+├── backend/                     # Java / Spring Boot API service
+│   ├── README.md                # Backend setup and architecture notes
 │   ├── pom.xml                 # Maven configuration and dependencies
 │   └── src/
-│       ├── main/
-│       │   ├── java/com/dairytrace/
-│       │   │   ├── config/     # Application & security configs
-│       │   │   ├── controller/ # REST API endpoints
-│       │   │   ├── service/    # Business logic layer
-│       │   │   ├── repository/ # Spring Data JPA repositories
-│       │   │   ├── model/      # Database entities
-│       │   │   ├── dto/        # Data Transfer Objects
-│       │   │   ├── security/   # Authentication & authorization
-│       │   │   ├── exception/  # Global error handling
-│       │   │   └── DairyTraceApplication.java # Spring Boot entrypoint
-│       │   └── resources/
-│       │       ├── application.properties
-│       │       └── db/         # Migration scripts
-│       └── test/               # Unit and integration tests
+│       ├── main/java/com/dairytrace/
+│       │   ├── controller/      # REST endpoints
+│       │   ├── service/         # Business logic
+│       │   ├── repository/      # Persistence layer
+│       │   ├── model/           # JPA entities
+│       │   ├── dto/             # API request/response models
+│       │   ├── security/        # Security configuration
+│       │   ├── exception/       # Error handling
+│       │   └── DairyTraceApplication.java
+│       └── main/resources/
+│           └── application.properties
 │
-├── database/                   # Database schemas, migrations, and seed scripts
-│   ├── schema/                 # DDL and base table definitions
-│   ├── migrations/             # Incremental database migrations
-│   └── seed/                   # Sample and demo seed datasets
+├── frontend-legacy/             # Legacy web frontend (Next.js / React / TypeScript)
+│   ├── README.md                # Frontend app overview and setup
+│   ├── package.json             # Node.js dependencies and scripts
+│   ├── public/                  # Static assets
+│   ├── src/                     # App routes, components, services, hooks, libs
+│   └── vitest.config.mts       # Test configuration
 │
-├── docs/                       # Comprehensive documentation
-│   ├── architecture/           # Architecture diagrams and system design
-│   ├── api/                    # OpenAPI / REST API specifications
-│   ├── database/               # Entity relationship diagrams and schemas
-│   └── workflows/              # Business flow and process documentation
+├── frontend/                    # Flutter web/desktop application prototype
+│   ├── README.md                # Flutter project instructions
+│   ├── lib/                     # Application screens and route definitions
+│   ├── pubspec.yaml             # Flutter package configuration
+│   ├── android/                 # Android project files
+│   ├── ios/                     # iOS project files
+│   ├── linux/                   # Linux project files
+│   ├── macos/                   # macOS project files
+│   ├── web/                     # Web build assets
+│   └── windows/                 # Windows project files
 │
-└── .github/                    # CI/CD and repository templates
-    ├── workflows/              # GitHub Actions workflows
-    ├── ISSUE_TEMPLATE/         # Bug reports and feature request templates
-    └── pull_request_template.md# PR contribution checklist
+├── mobile/                      # Flutter mobile app for Android/iOS
+│   ├── README.md                # Mobile app notes (if present)
+│   ├── lib/                     # App code and screens
+│   ├── pubspec.yaml             # Mobile package configuration
+│   ├── android/                 # Android project files
+│   ├── ios/                     # iOS project files
+│   ├── linux/                   # Linux project files
+│   ├── macos/                   # macOS project files
+│   ├── web/                     # Web build assets
+│   └── windows/                 # Windows project files
+│
+├── database/                    # Database schemas, migrations, and validation fixtures
+│   ├── schema/                  # DDL and schema definitions
+│   ├── migrations/              # Incremental database migrations
+│   └── seed/                    # Seed and fixture data for testing
+│
+├── docs/                        # Architecture, database, and workflow documentation
+│   ├── database/                # ER diagrams and schema notes
+│   └── ...                      # Additional design docs
+│
+├── .github/                     # GitHub templates and automation
+│   ├── ISSUE_TEMPLATE/
+│   ├── workflows/
+│   └── pull_request_template.md
+│
+└── .vscode/                     # Editor configuration (if created locally)
 ```
+
+Note: The repository currently includes both a legacy Next.js web frontend and separate Flutter applications. The active web app is under `frontend-legacy`, while `frontend` and `mobile` are platform-specific implementations.
 
 ---
 
@@ -98,7 +113,7 @@ docker-compose up -d
 - **Backend API**: http://localhost:8080/api
 - **Database**: localhost:5432 (PostgreSQL)
 
-For detailed instructions, refer to [frontend/README.md](file:///c:/Users/edhas/SWI2627_DairtTrace_Kalvium-Community/frontend/README.md) and [backend/README.md](file:///c:/Users/edhas/SWI2627_DairtTrace_Kalvium-Community/backend/README.md).
+For detailed instructions, refer to [frontend-legacy/README.md](./frontend-legacy/README.md), [frontend/README.md](./frontend/README.md), and [backend/README.md](./backend/README.md).
 
 ---
 
