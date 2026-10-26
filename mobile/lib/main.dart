@@ -1,4 +1,3 @@
-
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -7,6 +6,7 @@ import 'firebase_options.dart';
 import 'form_validators.dart';
 import 'models/collection.dart';
 import 'services/collection_service.dart';
+import 'screens/directory_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -146,25 +146,6 @@ class _AuthGateState extends State<AuthGate> {
   }
 
   @override
-  State<AuthGate> createState() => _AuthGateState();
-}
-
-class _AuthGateState extends State<AuthGate> {
-  late Stream<User?> _authStream;
-
-  @override
-  void initState() {
-    super.initState();
-    _authStream = FirebaseAuth.instance.authStateChanges();
-  }
-
-  void _retryAuthentication() {
-    setState(() {
-      _authStream = FirebaseAuth.instance.authStateChanges();
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
       stream: _authStream,
@@ -190,9 +171,7 @@ class _AuthGateState extends State<AuthGate> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text(
-                    'Unable to check your account. Please try again.',
-                  ),
+                  const Text('Unable to check your account. Please try again.'),
                   const SizedBox(height: 12),
                   TextButton(
                     onPressed: _retryAuthentication,
@@ -501,11 +480,7 @@ class _SplashScreenState extends State<SplashScreen> {
 // --------------------------------------------------
 
 class MilkCollectionPage extends StatefulWidget {
-  const MilkCollectionPage({
-    super.key,
-    this.collectionService,
-    this.auth,
-  });
+  const MilkCollectionPage({super.key, this.collectionService, this.auth});
 
   final CollectionService? collectionService;
   final FirebaseAuth? auth;
@@ -530,7 +505,6 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
   String? _successMessage;
   final _searchController = TextEditingController();
 
-
   @override
   void initState() {
     super.initState();
@@ -551,16 +525,6 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
 
   void _refreshCollections() {
     _collectionsStream = _createCollectionsStream();
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _refreshCollections();
-  }
-
-  void _refreshCollections() {
-    _collectionsStream = _collectionService.watchCollections();
   }
 
   Future<void> _submitCollection() async {
@@ -647,6 +611,7 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
   void dispose() {
     _farmerController.dispose();
     _quantityController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -660,6 +625,12 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
         ),
         centerTitle: true,
         actions: [
+          IconButton(
+            tooltip: 'Farmers and Centres',
+            onPressed: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const DirectoryPage())),
+            icon: const Icon(Icons.people_outline),
+          ),
           IconButton(
             tooltip: 'Sign out',
             onPressed: _signOut,
@@ -767,42 +738,42 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
                 ),
               ),
               const SizedBox(height: 12),
-SizedBox(
-  height: 48,
-  child: TextField(
-    controller: _searchController,
-    onChanged: (_) => setState(() {}),
-    decoration: InputDecoration(
-      hintText: 'Search farmer...',
-      prefixIcon: const Icon(
-        Icons.search,
-        color: Color(0xFF008D70),
-      ),
-      suffixIcon: _searchController.text.isEmpty
-          ? null
-          : IconButton(
-              icon: const Icon(Icons.close),
-              onPressed: () {
-                _searchController.clear();
-                setState(() {});
-              },
-            ),
-      filled: true,
-      fillColor: Colors.white,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.grey.shade300),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.grey.shade300),
-      ),
-    ),
-  ),
-),
-const SizedBox(height: 12),
-_buildCollectionList(),
+              SizedBox(
+                height: 48,
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    hintText: 'Search farmer...',
+                    prefixIcon: const Icon(
+                      Icons.search,
+                      color: Color(0xFF008D70),
+                    ),
+                    suffixIcon: _searchController.text.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.close),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() {});
+                            },
+                          ),
+                    filled: true,
+                    fillColor: Colors.white,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              _buildCollectionList(),
             ],
           ),
         ),
@@ -875,54 +846,52 @@ _buildCollectionList(),
           );
         }
 
-        final documents = (snapshot.data?.docs ?? []).where((document) {
-          final farmerName =
-            (document.data()['farmerName'] as String? ?? '').toLowerCase();
-
-          return farmerName.contains(_searchController.text.trim().toLowerCase());
+        final query = _searchController.text.trim().toLowerCase();
+        final filteredCollections = collections.where((collection) {
+          return collection.farmerName.toLowerCase().contains(query);
         }).toList();
 
-        if (documents.isEmpty) {
-  final isSearching = _searchController.text.trim().isNotEmpty;
+        if (filteredCollections.isEmpty) {
+          final isSearching = _searchController.text.trim().isNotEmpty;
 
-  return Card(
-    child: Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        children: [
-          Icon(
-            isSearching ? Icons.search_off : Icons.inbox_outlined,
-            size: 44,
-            color: Colors.grey,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            isSearching
-                ? 'No matching collections found.'
-                : 'No collections yet. Record your first collection.',
-            textAlign: TextAlign.center,
-          ),
-          if (isSearching)
-            TextButton(
-              onPressed: () {
-                _searchController.clear();
-                setState(() {});
-              },
-              child: const Text('Clear search'),
+          return Card(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                children: [
+                  Icon(
+                    isSearching ? Icons.search_off : Icons.inbox_outlined,
+                    size: 44,
+                    color: Colors.grey,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    isSearching
+                        ? 'No matching collections found.'
+                        : 'No collections yet. Record your first collection.',
+                    textAlign: TextAlign.center,
+                  ),
+                  if (isSearching)
+                    TextButton(
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() {});
+                      },
+                      child: const Text('Clear search'),
+                    ),
+                ],
+              ),
             ),
-        ],
-      ),
-    ),
-  );
-}
+          );
+        }
 
         return ListView.separated(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          itemCount: collections.length,
+          itemCount: filteredCollections.length,
           separatorBuilder: (_, _) => const SizedBox(height: 8),
           itemBuilder: (context, index) {
-            final collection = collections[index];
+            final collection = filteredCollections[index];
             final date = collection.collectionDate;
 
             final dateText = date == null
