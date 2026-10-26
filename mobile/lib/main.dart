@@ -203,25 +203,6 @@ class _AuthGateState extends State<AuthGate> {
   }
 
   @override
-  State<AuthGate> createState() => _AuthGateState();
-}
-
-class _AuthGateState extends State<AuthGate> {
-  late Stream<User?> _authStream;
-
-  @override
-  void initState() {
-    super.initState();
-    _authStream = FirebaseAuth.instance.authStateChanges();
-  }
-
-  void _retryAuthentication() {
-    setState(() {
-      _authStream = FirebaseAuth.instance.authStateChanges();
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
       stream: _authStream,
@@ -634,7 +615,6 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
   String? _successMessage;
   final _searchController = TextEditingController();
 
-
   @override
   void dispose() {
     _farmerController.dispose();
@@ -662,16 +642,6 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
 
   void _refreshCollections() {
     _collectionsStream = _createCollectionsStream();
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _refreshCollections();
-  }
-
-  void _refreshCollections() {
-    _collectionsStream = _collectionService.watchCollections();
   }
 
   Future<void> _submitCollection() async {
@@ -836,6 +806,12 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
             icon: const Icon(Icons.logout_rounded),
         centerTitle: true,
         actions: [
+          IconButton(
+            tooltip: 'Farmers and Centres',
+            onPressed: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const DirectoryPage())),
+            icon: const Icon(Icons.people_outline),
+          ),
           IconButton(
             tooltip: 'Sign out',
             onPressed: _signOut,
@@ -1179,46 +1155,44 @@ _buildCollectionList(),
           );
         }
 
-        final documents = (snapshot.data?.docs ?? []).where((document) {
-          final farmerName =
-            (document.data()['farmerName'] as String? ?? '').toLowerCase();
-
-          return farmerName.contains(_searchController.text.trim().toLowerCase());
+        final query = _searchController.text.trim().toLowerCase();
+        final filteredCollections = collections.where((collection) {
+          return collection.farmerName.toLowerCase().contains(query);
         }).toList();
 
-        if (documents.isEmpty) {
-  final isSearching = _searchController.text.trim().isNotEmpty;
+        if (filteredCollections.isEmpty) {
+          final isSearching = _searchController.text.trim().isNotEmpty;
 
-  return Card(
-    child: Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        children: [
-          Icon(
-            isSearching ? Icons.search_off : Icons.inbox_outlined,
-            size: 44,
-            color: Colors.grey,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            isSearching
-                ? 'No matching collections found.'
-                : 'No collections yet. Record your first collection.',
-            textAlign: TextAlign.center,
-          ),
-          if (isSearching)
-            TextButton(
-              onPressed: () {
-                _searchController.clear();
-                setState(() {});
-              },
-              child: const Text('Clear search'),
+          return Card(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                children: [
+                  Icon(
+                    isSearching ? Icons.search_off : Icons.inbox_outlined,
+                    size: 44,
+                    color: Colors.grey,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    isSearching
+                        ? 'No matching collections found.'
+                        : 'No collections yet. Record your first collection.',
+                    textAlign: TextAlign.center,
+                  ),
+                  if (isSearching)
+                    TextButton(
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() {});
+                      },
+                      child: const Text('Clear search'),
+                    ),
+                ],
+              ),
             ),
-        ],
-      ),
-    ),
-  );
-}
+          );
+        }
 
         return ListView.separated(
           shrinkWrap: true,
