@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -193,7 +193,7 @@ void main() {
 
       expect(
         find.text('Access denied. Check your Firestore security rules.'),
-        findsOneWidget,
+        findsNWidgets(2),
       );
       final fields = tester
           .widgetList<TextFormField>(find.byType(TextFormField))
@@ -228,6 +228,86 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('DairyTrace'), findsOneWidget);
+    });
+
+    testWidgets('shows a safe message when collection deletion is denied', (
+      tester,
+    ) async {
+      final service = _MockCollectionService();
+      when(() => service.watchCollections()).thenAnswer(
+        (_) => Stream<List<Collection>>.value([
+          const Collection(
+            id: 'collection-1',
+            farmerName: 'Farmer Name',
+            quantityLitres: 12.5,
+            collectionDate: null,
+            createdBy: 'user-1',
+          ),
+        ]),
+      );
+      when(
+        () => service.deleteCollection(collectionId: 'collection-1'),
+      ).thenThrow(
+        FirebaseException(
+          plugin: 'cloud_firestore',
+          code: 'permission-denied',
+          message: 'Internal Firestore details',
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(home: MilkCollectionPage(collectionService: service)),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.byTooltip('Delete collection'));
+      await tester.tap(find.byTooltip('Delete collection'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Access denied. You cannot delete this collection.'),
+        findsOneWidget,
+      );
+      expect(find.text('Internal Firestore details'), findsNothing);
+    });
+
+    testWidgets('shows a safe message when collection deletion fails', (
+      tester,
+    ) async {
+      final service = _MockCollectionService();
+      when(() => service.watchCollections()).thenAnswer(
+        (_) => Stream<List<Collection>>.value([
+          const Collection(
+            id: 'collection-1',
+            farmerName: 'Farmer Name',
+            quantityLitres: 12.5,
+            collectionDate: null,
+            createdBy: 'user-1',
+          ),
+        ]),
+      );
+      when(
+        () => service.deleteCollection(collectionId: 'collection-1'),
+      ).thenThrow(StateError('Internal deletion details'));
+
+      await tester.pumpWidget(
+        MaterialApp(home: MilkCollectionPage(collectionService: service)),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.byTooltip('Delete collection'));
+      await tester.tap(find.byTooltip('Delete collection'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Could not delete the collection. Please try again.'),
+        findsOneWidget,
+      );
+      expect(find.text('Internal deletion details'), findsNothing);
     });
   });
 }

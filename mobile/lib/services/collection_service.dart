@@ -4,6 +4,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/collection.dart';
 
 class CollectionService {
+  CollectionService({FirebaseFirestore? firestore})
+    : _collections = (firestore ?? FirebaseFirestore.instance).collection(
+        'collections',
+      );
+
+  final CollectionReference<Map<String, dynamic>> _collections;
   CollectionService({FirebaseFirestore? firestore, FirebaseAuth? auth})
     : _firestore = firestore ?? FirebaseFirestore.instance,
       _auth = auth ?? FirebaseAuth.instance;
@@ -43,7 +49,6 @@ class CollectionService {
     );
 
     final document = await _collections.add(collection.toFirestore());
-
     return document.id;
   }
 
@@ -66,9 +71,7 @@ class CollectionService {
   }
 
   /// Deletes a collection by its Firestore document ID.
-  ///
-  /// Firestore security rules must ensure that the signed-in user
-  /// owns the document before allowing the deletion.
+  /// Firestore security rules must enforce document ownership.
   Future<void> deleteCollection({required String collectionId}) async {
     final user = _auth.currentUser;
 
