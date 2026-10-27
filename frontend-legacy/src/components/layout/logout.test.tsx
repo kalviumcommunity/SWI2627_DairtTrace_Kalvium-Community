@@ -56,4 +56,36 @@ describe("logout flow", () => {
     expect(screen.queryByRole("heading", { name: "Protected dashboard" })).not.toBeInTheDocument();
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/login"));
   });
+
+  it("still redirects and protects content when storage access is denied", async () => {
+    startSession("test-jwt");
+    let unmount = render(<LogoutButton />).unmount;
+    const storageGetter = vi
+      .spyOn(window, "sessionStorage", "get")
+      .mockImplementation(() => {
+        throw new DOMException("Access denied.", "SecurityError");
+      });
+
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "Log out" }));
+
+      expect(replace).toHaveBeenCalledWith("/login");
+
+      unmount();
+      const protectedScreen = render(
+        <ProtectedScreen>
+          <h1>Protected dashboard</h1>
+        </ProtectedScreen>,
+      );
+      unmount = protectedScreen.unmount;
+
+      expect(
+        screen.queryByRole("heading", { name: "Protected dashboard" }),
+      ).not.toBeInTheDocument();
+      await waitFor(() => expect(replace).toHaveBeenCalledTimes(2));
+    } finally {
+      storageGetter.mockRestore();
+      unmount();
+    }
+  });
 });

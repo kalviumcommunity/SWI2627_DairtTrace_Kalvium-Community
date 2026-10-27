@@ -1,11 +1,19 @@
 const SESSION_TOKEN_KEY = "dairytrace.sessionToken";
 
 function getSessionStorage(): Storage | null {
-  if (typeof window === "undefined" || !window.sessionStorage) {
+  if (typeof window === "undefined") {
     return null;
   }
 
-  return window.sessionStorage;
+  try {
+    return window.sessionStorage;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "SecurityError") {
+      return null;
+    }
+
+    throw error;
+  }
 }
 
 export function startSession(token: string): void {
