@@ -57,14 +57,25 @@ service cloud.firestore {
           'quantityLitres',
           'collectionDate',
           'createdAt',
-          'createdBy'
+          'createdBy', 'fat', 'snf', 'temperature', 'qualityStatus'
         ])
         && data.farmerName is string
         && data.farmerName.size() >= 2
         && data.farmerName.size() <= 100
         && data.quantityLitres is number
         && data.quantityLitres > 0
-        && data.createdBy is string;
+        && data.createdBy is string
+        && validQuality(data);
+      }
+
+      function validQuality(data) {
+        return (!data.keys().hasAny(['fat', 'snf', 'temperature', 'qualityStatus']))
+          || (data.keys().hasAll(['fat', 'snf', 'temperature', 'qualityStatus'])
+            && data.fat is number && data.fat >= 0 && data.fat <= 100
+            && data.snf is number && data.snf >= 0 && data.snf <= 100
+            && data.temperature is number && data.temperature >= 0
+            && data.qualityStatus == ((data.fat >= 3 && data.snf >= 8 && data.temperature <= 10)
+              ? 'ACCEPTED' : 'ALERT'));
       }
 
       allow read: if ownsExistingRecord();

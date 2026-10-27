@@ -2,14 +2,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/collection.dart';
+import '../utils/quality_checker.dart';
 
 class CollectionService {
-  CollectionService({FirebaseFirestore? firestore})
-    : _collections = (firestore ?? FirebaseFirestore.instance).collection(
-        'collections',
-      );
-
-  final CollectionReference<Map<String, dynamic>> _collections;
   CollectionService({FirebaseFirestore? firestore, FirebaseAuth? auth})
     : _firestore = firestore ?? FirebaseFirestore.instance,
       _auth = auth ?? FirebaseAuth.instance;
@@ -23,6 +18,9 @@ class CollectionService {
   Future<String> addCollection({
     required String farmerName,
     required double quantityLitres,
+    required double fat,
+    required double snf,
+    required double temperature,
   }) async {
     final user = _auth.currentUser;
 
@@ -40,12 +38,21 @@ class CollectionService {
       throw ArgumentError('Milk quantity must be greater than zero.');
     }
 
+    final quality = QualityChecker.check(
+      fat: fat,
+      snf: snf,
+      temperature: temperature,
+    );
     final collection = Collection(
       id: '',
       farmerName: normalizedName,
       quantityLitres: quantityLitres,
       collectionDate: null,
       createdBy: user.uid,
+      fat: fat,
+      snf: snf,
+      temperature: temperature,
+      qualityStatus: quality.status,
     );
 
     final document = await _collections.add(collection.toFirestore());

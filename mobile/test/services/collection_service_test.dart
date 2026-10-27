@@ -1,8 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:mobile/services/collection_service.dart';
 
-void main() {
+void queryTests() {
   group('CollectionService', () {
     late FakeFirebaseFirestore firestore;
 
@@ -73,19 +76,16 @@ void main() {
       expect(snapshot.docs, hasLength(2));
       expect(snapshot.docs.first.data()['farmerName'], 'Newer Farmer');
       expect(snapshot.docs.last.data()['farmerName'], 'Older Farmer');
-
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:mocktail/mocktail.dart';
-import 'package:mobile/services/collection_service.dart';
+    });
+  });
+}
 
 class MockFirebaseAuth extends Mock implements FirebaseAuth {}
 
 class MockUser extends Mock implements User {}
 
 void main() {
+  queryTests();
   late FakeFirebaseFirestore firestore;
   late MockFirebaseAuth auth;
   late MockUser user;
@@ -99,10 +99,7 @@ void main() {
     when(() => auth.currentUser).thenReturn(user);
     when(() => user.uid).thenReturn('user-123');
 
-    service = CollectionService(
-      firestore: firestore,
-      auth: auth,
-    );
+    service = CollectionService(firestore: firestore, auth: auth);
   });
 
   group('deleteCollection', () {
@@ -115,9 +112,7 @@ void main() {
         'createdBy': 'user-123',
       });
 
-      await service.deleteCollection(
-        collectionId: 'collection-1',
-      );
+      await service.deleteCollection(collectionId: 'collection-1');
 
       final deletedDocument = await firestore
           .collection('collections')
@@ -131,9 +126,7 @@ void main() {
       when(() => auth.currentUser).thenReturn(null);
 
       expect(
-        () => service.deleteCollection(
-          collectionId: 'collection-1',
-        ),
+        () => service.deleteCollection(collectionId: 'collection-1'),
         throwsA(isA<StateError>()),
       );
     });
@@ -147,9 +140,7 @@ void main() {
 
     test('deleting a missing document completes safely', () async {
       await expectLater(
-        service.deleteCollection(
-          collectionId: 'does-not-exist',
-        ),
+        service.deleteCollection(collectionId: 'does-not-exist'),
         completes,
       );
 

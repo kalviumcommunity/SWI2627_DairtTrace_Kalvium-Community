@@ -80,13 +80,10 @@ void main() {
 
       await tester.pump();
 
-      expect(
-        find.text('Unable to check your account. Please try again.'),
-        findsOneWidget,
-      );
-      expect(find.text('Try again'), findsOneWidget);
+      expect(find.text('Unable to check your account'), findsOneWidget);
+      expect(find.text('Try Again'), findsOneWidget);
 
-      await tester.tap(find.text('Try again'));
+      await tester.tap(find.text('Try Again'));
       await tester.pump();
       await tester.pump();
 
