@@ -12,6 +12,12 @@ class CollectionService {
   Future<void> addCollection({
     required String farmerName,
     required double quantityLitres,
+    required DateTime collectionDate,
+    required String session,
+    double? fatPercent,
+    double? snfPercent,
+    double? temperatureC,
+    String? notes,
   }) async {
     final user = FirebaseAuth.instance.currentUser;
 
@@ -19,13 +25,23 @@ class CollectionService {
       throw StateError('Please sign in before recording a collection.');
     }
 
-    await _collections.add({
+    final data = <String, dynamic>{
       'farmerName': farmerName.trim(),
       'quantityLitres': quantityLitres,
-      'collectionDate': FieldValue.serverTimestamp(),
+      'collectionDate': Timestamp.fromDate(collectionDate),
+      'session': session,
       'createdAt': FieldValue.serverTimestamp(),
       'createdBy': user.uid,
-    });
+    };
+
+    if (fatPercent != null) data['fatPercent'] = fatPercent;
+    if (snfPercent != null) data['snfPercent'] = snfPercent;
+    if (temperatureC != null) data['temperatureC'] = temperatureC;
+    if (notes != null && notes.trim().isNotEmpty) {
+      data['notes'] = notes.trim();
+    }
+
+    await _collections.add(data);
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> watchCollections() {
