@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +8,7 @@ import 'models/collection.dart';
 import 'screens/directory_page.dart';
 import 'services/collection_service.dart';
 import 'utils/user_feedback.dart';
+import 'utils/quality_checker.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -518,6 +518,10 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
   final _formKey = GlobalKey<FormState>();
   final _farmerController = TextEditingController();
   final _quantityController = TextEditingController();
+  final _fatController = TextEditingController();
+  final _snfController = TextEditingController();
+  final _temperatureController = TextEditingController();
+  String? _qualityAlert;
   late final CollectionService _collectionService =
       widget.collectionService ?? CollectionService();
   late final FirebaseAuth _auth = widget.auth ?? FirebaseAuth.instance;
@@ -528,14 +532,6 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
   String? _errorMessage;
   String? _successMessage;
   final _searchController = TextEditingController();
-
-  @override
-  void dispose() {
-    _farmerController.dispose();
-    _quantityController.dispose();
-    _searchController.dispose();
-    super.dispose();
-  }
 
   @override
   void initState() {
@@ -560,10 +556,19 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
   }
 
   Future<void> _submitCollection() async {
+    if (_isSaving) return;
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
+    final fat = double.parse(_fatController.text.trim());
+    final snf = double.parse(_snfController.text.trim());
+    final temperature = double.parse(_temperatureController.text.trim());
+    final quality = QualityChecker.check(
+      fat: fat,
+      snf: snf,
+      temperature: temperature,
+    );
     final farmerName = _farmerController.text.trim();
     final quantity = double.tryParse(_quantityController.text.trim());
 
@@ -577,6 +582,7 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
 
     setState(() {
       _isSaving = true;
+      _qualityAlert = null;
       _errorMessage = null;
       _successMessage = null;
     });
@@ -585,21 +591,32 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
       await _collectionService.addCollection(
         farmerName: farmerName,
         quantityLitres: quantity,
+        fat: fat,
+        snf: snf,
+        temperature: temperature,
       );
 
       if (!mounted) return;
 
       _farmerController.clear();
       _quantityController.clear();
+      _fatController.clear();
+      _snfController.clear();
+      _temperatureController.clear();
       _formKey.currentState?.reset();
 
       setState(() {
-        _successMessage = 'Collection saved successfully!';
+        if (quality.isAccepted) {
+          _successMessage = 'Collection saved successfully! Quality: ACCEPTED.';
+        } else {
+          _qualityAlert = 'Collection saved. Quality ALERT: ${quality.message}';
+        }
       });
-      UserFeedback.showSuccess(
-        context,
-        message: 'Collection saved successfully!',
-      );
+      if (quality.isAccepted) {
+        UserFeedback.showSuccess(context, message: _successMessage!);
+      } else {
+        UserFeedback.showError(context, message: _qualityAlert!);
+      }
     } on FirebaseException catch (error, stackTrace) {
       debugPrint('Firestore save error: ${error.code} ${error.message}');
       debugPrintStack(stackTrace: stackTrace);
@@ -687,6 +704,9 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
   void dispose() {
     _farmerController.dispose();
     _quantityController.dispose();
+    _fatController.dispose();
+    _snfController.dispose();
+    _temperatureController.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -765,6 +785,12 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
                       ),
                       validator: validateMilkQuantity,
                     ),
+                    const SizedBox(height: 16),
+                    _qualityField(_fatController, 'Fat %', percentage: true),
+                    const SizedBox(height: 16),
+                    _qualityField(_snfController, 'SNF %', percentage: true),
+                    const SizedBox(height: 16),
+                    _qualityField(_temperatureController, 'Temperature (°C)'),
                     const SizedBox(height: 20),
                     SizedBox(
                       height: 52,
@@ -794,6 +820,14 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
                   message: _errorMessage!,
                   color: Colors.red,
                   icon: Icons.error_outline,
+                ),
+              ],
+              if (_qualityAlert != null) ...[
+                const SizedBox(height: 16),
+                _StatusMessage(
+                  message: _qualityAlert!,
+                  color: Colors.orange.shade900,
+                  icon: Icons.warning_amber,
                 ),
               ],
               if (_successMessage != null) ...[
@@ -857,6 +891,21 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
     );
   }
 
+  Widget _qualityField(
+    TextEditingController controller,
+    String label, {
+    bool percentage = false,
+  }) {
+    return TextFormField(
+      controller: controller,
+      enabled: !_isSaving,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      decoration: InputDecoration(labelText: label),
+      validator: (value) =>
+          validateQualityReading(value, label: label, percentage: percentage),
+    );
+  }
+
   Widget _buildCollectionList() {
     return StreamBuilder<List<Collection>>(
       stream: _collectionsStream,
@@ -896,6 +945,7 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
                         : 'Check your internet connection, then try again.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.grey.shade700),
+                  ),
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
                     onPressed: () {
@@ -987,7 +1037,29 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
                   child: Icon(Icons.water_drop, color: Colors.green.shade800),
                 ),
                 title: Text(collection.farmerName),
-                subtitle: Text(dateText),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(dateText),
+                    Text(
+                      'Fat: ${collection.fat?.toStringAsFixed(1) ?? "—"}% · SNF: ${collection.snf?.toStringAsFixed(1) ?? "—"}%',
+                    ),
+                    Text(
+                      'Temperature: ${collection.temperature?.toStringAsFixed(1) ?? "—"}°C',
+                    ),
+                    Text(
+                      'Quality: ${collection.qualityStatus}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: collection.qualityStatus == 'ALERT'
+                            ? Colors.orange.shade900
+                            : collection.qualityStatus == 'ACCEPTED'
+                            ? Colors.green.shade700
+                            : Colors.grey.shade700,
+                      ),
+                    ),
+                  ],
+                ),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
