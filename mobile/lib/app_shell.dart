@@ -1,5 +1,3 @@
-import 'demo_backend.dart';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -142,7 +140,7 @@ class _DairyTraceShellState extends State<DairyTraceShell> {
   late final _collectionService =
       widget.collectionService ?? CollectionService();
   late final operations = widget.operations ?? OperationsService();
-  late final auth = widget.auth ?? AppBackend.auth;
+  late final auth = widget.auth ?? FirebaseAuth.instance;
   late Stream<QuerySnapshot<Map<String, dynamic>>> _collections;
   int _selectedTab = 0;
 
@@ -912,9 +910,6 @@ class _MoreTab extends StatelessWidget {
                 onPressed: () async {
                   try {
                     await auth.signOut();
-                    if (AppBackend.isDemo && context.mounted) {
-                      Navigator.of(context, rootNavigator: true).pop();
-                    }
                   } catch (error) {
                     if (!context.mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -1385,7 +1380,7 @@ class _InformationPage extends StatelessWidget {
         if (title == 'Settings') ...[
           _DetailRow(
             label: 'Signed in',
-            value: AppBackend.auth.currentUser?.email ?? '',
+            value: FirebaseAuth.instance.currentUser?.email ?? '',
           ),
           const _DetailRow(label: 'Access', value: 'Your account records'),
           const _DetailRow(
@@ -1396,9 +1391,11 @@ class _InformationPage extends StatelessWidget {
           OutlinedButton(
             onPressed: () async {
               try {
-                final email = AppBackend.auth.currentUser?.email;
+                final email = FirebaseAuth.instance.currentUser?.email;
                 if (email != null) {
-                  await AppBackend.auth.sendPasswordResetEmail(email: email);
+                  await FirebaseAuth.instance.sendPasswordResetEmail(
+                    email: email,
+                  );
                 }
                 if (context.mounted) {
                   UserFeedback.showInfo(

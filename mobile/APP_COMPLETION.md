@@ -27,6 +27,5 @@ Run from `mobile`: `flutter analyze`, `flutter test`, and `flutter build apk --d
 
 Android emulator smoke test: APK installed and login rendered successfully after a cold boot with software graphics. The existing emulator snapshot initially displayed a blank surface. Signed-in production workflows were not exercised; service, widget and rules tests use isolated fixtures.
 
-## Sample mode and empty-state follow-up
-Based on merged main 7ec3e03. Login now offers Explore sample app. This mode uses an isolated in-memory database, resets when reopened, and never writes sample records to Firebase. The persistent demo banner/back button and Sign out exit the demo. Samples include linked farmers/centre, collections, pending/passed/failed batches and open/review/resolved disputes; reports and reconciliation derive from those records. Two collections remain available for batch creation. Farmer setup offers centre creation when none exists; empty batch creation links to collection entry. Full validation: 90 Flutter tests passed and analysis clean.
-
+## Registration follow-up
+Demo mode removed at user request. All app forms use the signed-in Firebase account. Farmer and centre tabs now use separate centre subscriptions, with a regression test for opening registration after switching tabs. Missing-centre and missing-collection states offer direct creation actions. Validation: 89 tests passed; analysis clean.

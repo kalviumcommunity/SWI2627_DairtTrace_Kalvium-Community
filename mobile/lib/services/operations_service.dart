@@ -1,13 +1,11 @@
-import '../demo_backend.dart';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 /// Owner-scoped operational records. Money and role provisioning are separate.
 class OperationsService {
   OperationsService({FirebaseFirestore? firestore, FirebaseAuth? auth})
-    : db = firestore ?? AppBackend.firestore,
-      auth = auth ?? AppBackend.auth;
+    : db = firestore ?? FirebaseFirestore.instance,
+      auth = auth ?? FirebaseAuth.instance;
   final FirebaseFirestore db;
   final FirebaseAuth auth;
   String get uid {
