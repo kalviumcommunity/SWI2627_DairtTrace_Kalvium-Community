@@ -59,6 +59,15 @@ class CollectionService {
     return document.id;
   }
 
+  Stream<QuerySnapshot<Map<String, dynamic>>> watchDocuments() {
+    final user = _auth.currentUser;
+    if (user == null) throw StateError('Please sign in to view collections.');
+    return _collections
+        .where('createdBy', isEqualTo: user.uid)
+        .orderBy('collectionDate', descending: true)
+        .snapshots();
+  }
+
   Stream<List<Collection>> watchCollections() {
     final user = _auth.currentUser;
 
