@@ -1,3 +1,5 @@
+import 'demo_backend.dart';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -439,6 +441,25 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                     const SizedBox(height: 12),
+                    TextButton.icon(
+                      icon: const Icon(Icons.science_outlined),
+                      label: const Text('Explore sample app'),
+                      onPressed: _isLoading
+                          ? null
+                          : () async {
+                              await AppBackend.startDemo();
+                              if (!context.mounted) {
+                                AppBackend.closeDemo();
+                                return;
+                              }
+                              await Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => const DemoAppPage(),
+                                ),
+                              );
+                              AppBackend.closeDemo();
+                            },
+                    ),
                     ClipRRect(
                       borderRadius: BorderRadius.circular(18),
                       child: const FarmLandscape(height: 110),
@@ -1137,4 +1158,21 @@ class _StatusMessage extends StatelessWidget {
       ),
     );
   }
+}
+
+class DemoAppPage extends StatelessWidget {
+  const DemoAppPage({super.key});
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Sample data - isolated demo')),
+    body: Navigator(
+      onGenerateRoute: (_) => MaterialPageRoute<void>(
+        builder: (innerContext) => DairyTraceShell(
+          onNewCollection: () => Navigator.of(innerContext).push(
+            MaterialPageRoute<void>(builder: (_) => const NewCollectionPage()),
+          ),
+        ),
+      ),
+    ),
+  );
 }

@@ -474,6 +474,12 @@ class _BatchBuilderPageState extends State<BatchBuilderPage> {
                 title: 'No eligible collections',
                 message: 'Record a collection for a registered farmer first.',
               ),
+            if (available.isEmpty)
+              FilledButton.icon(
+                onPressed: () => _open(context, const NewCollectionPage()),
+                icon: const Icon(Icons.add),
+                label: const Text('Record a collection'),
+              ),
             ...available.map(
               (r) => CheckboxListTile(
                 value: selected.contains(r.id),

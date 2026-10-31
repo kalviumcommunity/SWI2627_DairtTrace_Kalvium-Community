@@ -234,10 +234,14 @@ class _DirectoryPageState extends State<DirectoryPage> {
             padding: const EdgeInsets.all(16),
             child: FilledButton.icon(
               onPressed: centersSnapshot.hasData
-                  ? () => _add(true, centers)
+                  ? () => _add(centers.isNotEmpty, centers)
                   : null,
               icon: const Icon(Icons.add),
-              label: const Text('Register Farmer'),
+              label: Text(
+                centers.isEmpty
+                    ? 'Add a centre to register farmers'
+                    : 'Register Farmer',
+              ),
             ),
           ),
           if (centersSnapshot.hasError)

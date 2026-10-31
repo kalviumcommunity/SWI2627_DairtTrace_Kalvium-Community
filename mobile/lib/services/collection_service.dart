@@ -1,3 +1,5 @@
+import '../demo_backend.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -6,8 +8,8 @@ import '../utils/quality_checker.dart';
 
 class CollectionService {
   CollectionService({FirebaseFirestore? firestore, FirebaseAuth? auth})
-    : _firestore = firestore ?? FirebaseFirestore.instance,
-      _auth = auth ?? FirebaseAuth.instance;
+    : _firestore = firestore ?? AppBackend.firestore,
+      _auth = auth ?? AppBackend.auth;
 
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;

@@ -1,3 +1,5 @@
+import '../demo_backend.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -19,8 +21,8 @@ class DirectoryEntry {
 /// Initial operator-owned directory. Cooperative roles are a separate migration.
 class DirectoryService {
   DirectoryService({FirebaseFirestore? firestore, FirebaseAuth? auth})
-    : _db = firestore ?? FirebaseFirestore.instance,
-      _auth = auth ?? FirebaseAuth.instance;
+    : _db = firestore ?? AppBackend.firestore,
+      _auth = auth ?? AppBackend.auth;
   final FirebaseFirestore _db;
   final FirebaseAuth _auth;
 
