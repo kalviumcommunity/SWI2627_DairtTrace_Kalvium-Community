@@ -3,6 +3,9 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 import 'firebase_options.dart';
+import 'app_shell.dart';
+import 'widgets/brand.dart';
+import 'widgets/app_theme.dart';
 import 'form_validators.dart';
 import 'models/collection.dart';
 import 'screens/directory_page.dart';
@@ -77,36 +80,10 @@ class DairyTraceApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const emerald = Color(0xFF008D70);
-
     return MaterialApp(
       title: 'DairyTrace',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: emerald),
-        useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFFF7FAF8),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.white,
-          foregroundColor: Color(0xFF183C32),
-          surfaceTintColor: Colors.transparent,
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          filled: true,
-          fillColor: Colors.white,
-        ),
-        filledButtonTheme: FilledButtonThemeData(
-          style: FilledButton.styleFrom(
-            backgroundColor: emerald,
-            foregroundColor: Colors.white,
-            minimumSize: const Size.fromHeight(50),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        ),
-      ),
+      theme: dairyTheme(),
       home: initializationError == null
           ? const AuthGate()
           : const FirebaseStartupErrorScreen(),
@@ -129,6 +106,7 @@ class AuthGate extends StatefulWidget {
 
 class _AuthGateState extends State<AuthGate> {
   late Stream<User?> _authStream;
+  bool _hadUser = false;
 
   @override
   void initState() {
@@ -210,9 +188,17 @@ class _AuthGateState extends State<AuthGate> {
         final user = snapshot.data;
 
         if (user != null) {
+          _hadUser = true;
           return const SplashScreen();
         }
-
+        if (_hadUser) {
+          _hadUser = false;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              Navigator.of(context).popUntil((route) => route.isFirst);
+            }
+          });
+        }
         return const LoginPage();
       },
     );
@@ -239,6 +225,7 @@ class _LoginPageState extends State<LoginPage> {
   late final FirebaseAuth _auth = widget.auth ?? FirebaseAuth.instance;
 
   bool _isRegistering = false;
+  bool _showPassword = false;
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -319,11 +306,7 @@ class _LoginPageState extends State<LoginPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Icon(
-                      Icons.water_drop,
-                      color: Color(0xFF008D70),
-                      size: 72,
-                    ),
+                    const Center(child: DairyBrand(size: 100)),
                     const SizedBox(height: 16),
                     Text(
                       'DairyTrace',
@@ -335,7 +318,7 @@ class _LoginPageState extends State<LoginPage> {
                     Text(
                       _isRegistering
                           ? 'Create your account'
-                          : 'Sign in to manage milk collections',
+                          : 'Trace · Trust · Together',
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 32),
@@ -354,11 +337,23 @@ class _LoginPageState extends State<LoginPage> {
                     TextFormField(
                       controller: _passwordController,
                       enabled: !_isLoading,
-                      obscureText: true,
+                      obscureText: !_showPassword,
                       autofillHints: const [AutofillHints.password],
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Password',
-                        prefixIcon: Icon(Icons.lock_outline),
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        suffixIcon: IconButton(
+                          tooltip: _showPassword
+                              ? 'Hide password'
+                              : 'Show password',
+                          onPressed: () =>
+                              setState(() => _showPassword = !_showPassword),
+                          icon: Icon(
+                            _showPassword
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
+                          ),
+                        ),
                       ),
                       validator: (value) => validatePassword(
                         value,
@@ -366,6 +361,44 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                     const SizedBox(height: 16),
+                    if (!_isRegistering)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: _isLoading
+                              ? null
+                              : () async {
+                                  final email = _emailController.text.trim();
+                                  if (validateEmail(email) != null) {
+                                    UserFeedback.showError(
+                                      context,
+                                      message:
+                                          'Enter your email address first.',
+                                    );
+                                    return;
+                                  }
+                                  try {
+                                    await _auth.sendPasswordResetEmail(
+                                      email: email,
+                                    );
+                                    if (context.mounted) {
+                                      UserFeedback.showInfo(
+                                        context,
+                                        message: 'If an account exists, reset instructions will be sent.',
+                                      );
+                                    }
+                                  } catch (_) {
+                                    if (context.mounted) {
+                                      UserFeedback.showError(
+                                        context,
+                                        message: 'Unable to request reset. Please try again.',
+                                      );
+                                    }
+                                  }
+                                },
+                          child: const Text('Forgot Password?'),
+                        ),
+                      ),
                     if (_errorMessage != null) ...[
                       Text(
                         _errorMessage!,
@@ -405,6 +438,11 @@ class _LoginPageState extends State<LoginPage> {
                             : 'New user? Create an account',
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(18),
+                      child: const FarmLandscape(height: 110),
+                    ),
                   ],
                 ),
               ),
@@ -429,70 +467,52 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  bool ready = false;
   @override
   void initState() {
     super.initState();
-
     Future.delayed(const Duration(seconds: 2), () {
-      if (!mounted) return;
-
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const MilkCollectionPage()),
-      );
+      if (mounted) setState(() => ready = true);
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        width: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF006B54), Color(0xFF23A581)],
-          ),
+    if (ready) {
+      return DairyTraceShell(
+        onNewCollection: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => const NewCollectionPage()),
         ),
-        child: SafeArea(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 110,
-                height: 110,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.water_drop,
-                  size: 58,
-                  color: Color(0xFF008D70),
-                ),
+      );
+    }
+    return const Scaffold(
+      backgroundColor: Color(0xFFF2FAF5),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Spacer(),
+            DairyBrand(size: 125),
+            SizedBox(height: 12),
+            Text(
+              'DairyTrace',
+              style: TextStyle(
+                fontSize: 36,
+                color: Color(0xFF006B50),
+                fontWeight: FontWeight.w800,
               ),
-              const SizedBox(height: 28),
-              const Text(
-                'DairyTrace',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 36,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.2,
-                ),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'Tracking every drop from farm to table',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white70, fontSize: 16),
-              ),
-              const SizedBox(height: 42),
-              const CircularProgressIndicator(color: Colors.white),
-              const SizedBox(height: 16),
-              const Text('Loading...', style: TextStyle(color: Colors.white)),
-            ],
-          ),
+            ),
+            Text(
+              'Trace · Trust · Together',
+              style: TextStyle(color: Color(0xFF006B50)),
+            ),
+            Spacer(),
+            FarmLandscape(height: 240),
+            SizedBox(height: 24),
+            Text('Building a transparent dairy supply chain'),
+            SizedBox(height: 16),
+            Text('Loading...'),
+            SizedBox(height: 24),
+          ],
         ),
       ),
     );

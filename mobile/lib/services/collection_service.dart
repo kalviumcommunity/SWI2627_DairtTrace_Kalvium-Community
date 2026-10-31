@@ -21,6 +21,11 @@ class CollectionService {
     required double fat,
     required double snf,
     required double temperature,
+    String? farmerId,
+    String? centerId,
+    String? session,
+    DateTime? occurredAt,
+    String notes = '',
   }) async {
     final user = _auth.currentUser;
 
@@ -55,8 +60,49 @@ class CollectionService {
       qualityStatus: quality.status,
     );
 
-    final document = await _collections.add(collection.toFirestore());
-    return document.id;
+    if (farmerId == null) {
+      final document = await _collections.add(collection.toFirestore());
+      return document.id;
+    }
+    if (centerId == null ||
+        !['MORNING', 'EVENING'].contains(session) ||
+        occurredAt == null ||
+        occurredAt.isAfter(DateTime.now().add(const Duration(minutes: 1))) ||
+        occurredAt.year < 2020 ||
+        notes.trim().length > 1000) {
+      throw ArgumentError(
+        'Check the collection centre, date, session and notes.',
+      );
+    }
+    final ref = _collections.doc();
+    await _firestore.runTransaction((tx) async {
+      final farmer = await tx.get(
+        _firestore.collection('farmers').doc(farmerId),
+      );
+      final center = await tx.get(
+        _firestore.collection('collectionCenters').doc(centerId),
+      );
+      if (farmer.data()?['createdBy'] != user.uid ||
+          farmer.data()?['status'] != 'ACTIVE' ||
+          farmer.data()?['centerId'] != centerId ||
+          center.data()?['createdBy'] != user.uid ||
+          center.data()?['status'] != 'ACTIVE') {
+        throw StateError('Select an active farmer and centre you can access.');
+      }
+      tx.set(ref, {
+        ...collection.toFirestore(),
+        'farmerId': farmerId,
+        'centerId': centerId,
+        'farmerName': farmer.data()!['name'],
+        'centerName': center.data()!['name'],
+        'session': session,
+        'collectionDate': Timestamp.fromDate(occurredAt),
+        'dayKey':
+            '${occurredAt.year}-${occurredAt.month.toString().padLeft(2, '0')}-${occurredAt.day.toString().padLeft(2, '0')}',
+        'notes': notes.trim(),
+      });
+    });
+    return ref.id;
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> watchDocuments() {
