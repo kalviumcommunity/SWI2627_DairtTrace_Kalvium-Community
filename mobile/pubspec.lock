@@ -137,38 +137,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.6.0"
-  file_selector_linux:
-    dependency: transitive
-    description:
-      name: file_selector_linux
-      sha256: da76400e7872ce7637ffdce12749ec24169c25f6195c28372208e65a24bcd2ab
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.9.4+1"
-  file_selector_macos:
-    dependency: transitive
-    description:
-      name: file_selector_macos
-      sha256: d785431f1910aac8a50e5c492cae912320158030a88703c67b9ef7f1f96fd7ba
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.9.5+2"
-  file_selector_platform_interface:
-    dependency: transitive
-    description:
-      name: file_selector_platform_interface
-      sha256: "35e0bd61ebcdb91a3505813b055b09b79dfdc7d0aee9c09a7ba59ae4bb13dc85"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.7.0"
-  file_selector_windows:
-    dependency: transitive
-    description:
-      name: file_selector_windows
-      sha256: fbefc5fb92c6d3cbe8d284a2cd971b593bb07d2cd6da8557b81a862250b4acec
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.9.3+6"
   firebase_auth:
     dependency: "direct main"
     description:
@@ -424,14 +392,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.18.3"
-  mime:
-    dependency: transitive
-    description:
-      name: mime
-      sha256: bd47de35f07e27267e69c8c8b22edf9473bfee170a60d60fcc93730c5144b7f6
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.1.0"
   mock_exceptions:
     dependency: transitive
     description:
@@ -440,14 +400,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.8.2"
-  mocktail:
-    dependency: "direct dev"
-    description:
-      name: mocktail
-      sha256: "5e1bf53cc7baa8062a33b84424deb61513858ea05c601b8509e683815b5914aa"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.0.5"
   more:
     dependency: transitive
     description:

@@ -1,7 +1,9 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
+import 'app_shell.dart';
 import 'firebase_options.dart';
 import 'form_validators.dart';
 import 'models/collection.dart';
@@ -26,6 +28,91 @@ Future<void> main() async {
   }
 
   runApp(DairyTraceApp(initializationError: initializationError));
+}
+
+class FirebaseStartupErrorScreen extends StatelessWidget {
+  const FirebaseStartupErrorScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.cloud_off_rounded,
+                size: 64,
+                color: Colors.green,
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Unable to start DairyTrace',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'DairyTrace could not connect to its services. '
+                'Please check your internet connection and app '
+                'configuration, then restart the app.',
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// --------------------------------------------------
+// APP
+// --------------------------------------------------
+
+class DairyTraceLogo extends StatelessWidget {
+  const DairyTraceLogo({super.key, this.size = 84, this.showName = false});
+
+  final double size;
+  final bool showName;
+
+  @override
+  Widget build(BuildContext context) {
+    const emerald = Color(0xFF00866A);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: const Color(0xFFE6F5EE),
+            borderRadius: BorderRadius.circular(size * 0.30),
+          ),
+          child: Icon(
+            Icons.water_drop_rounded,
+            size: size * 0.56,
+            color: emerald,
+          ),
+        ),
+        if (showName) ...[
+          const SizedBox(height: 12),
+          const Text(
+            'DairyTrace',
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.8,
+              color: Color(0xFF183C32),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
 }
 
 class FirebaseStartupErrorScreen extends StatelessWidget {
@@ -98,7 +185,7 @@ class DairyTraceApp extends StatelessWidget {
         ),
         filledButtonTheme: FilledButtonThemeData(
           style: FilledButton.styleFrom(
-            backgroundColor: emerald,
+            backgroundColor: const Color(0xFF00866A),
             foregroundColor: Colors.white,
             minimumSize: const Size.fromHeight(50),
             shape: RoundedRectangleBorder(
@@ -119,9 +206,7 @@ class DairyTraceApp extends StatelessWidget {
 // --------------------------------------------------
 
 class AuthGate extends StatefulWidget {
-  const AuthGate({super.key, this.authStateChanges});
-
-  final Stream<User?> Function()? authStateChanges;
+  const AuthGate({super.key});
 
   @override
   State<AuthGate> createState() => _AuthGateState();
@@ -133,18 +218,12 @@ class _AuthGateState extends State<AuthGate> {
   @override
   void initState() {
     super.initState();
-    _authStream = _createAuthStream();
-  }
-
-  Stream<User?> _createAuthStream() {
-    // Use the injected stream in tests; otherwise use Firebase.
-    return widget.authStateChanges?.call() ??
-        FirebaseAuth.instance.authStateChanges();
+    _authStream = FirebaseAuth.instance.authStateChanges();
   }
 
   void _retryAuthentication() {
     setState(() {
-      _authStream = _createAuthStream();
+      _authStream = FirebaseAuth.instance.authStateChanges();
     });
   }
 
@@ -154,18 +233,7 @@ class _AuthGateState extends State<AuthGate> {
       stream: _authStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Checking your authentication...'),
-                ],
-              ),
-            ),
-          );
+          return const DairyTraceSplashScreen();
         }
 
         if (snapshot.hasError) {
@@ -210,7 +278,15 @@ class _AuthGateState extends State<AuthGate> {
         final user = snapshot.data;
 
         if (user != null) {
-          return const SplashScreen();
+          return DairyTraceShell(
+            onNewCollection: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const MilkCollectionPage(),
+                ),
+              );
+            },
+          );
         }
 
         return const LoginPage();
@@ -240,6 +316,7 @@ class _LoginPageState extends State<LoginPage> {
 
   bool _isRegistering = false;
   bool _isLoading = false;
+  bool _isPasswordVisible = false;
   String? _errorMessage;
 
   Future<void> _authenticate() async {
@@ -328,8 +405,11 @@ class _LoginPageState extends State<LoginPage> {
                     Text(
                       'DairyTrace',
                       textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.headlineMedium
-                          ?.copyWith(fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF183C32),
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -348,17 +428,39 @@ class _LoginPageState extends State<LoginPage> {
                         labelText: 'Email address',
                         prefixIcon: Icon(Icons.email_outlined),
                       ),
-                      validator: validateEmail,
+                      validator: (value) {
+                        final email = value?.trim() ?? '';
+                        if (email.isEmpty) {
+                          return 'Email is required.';
+                        }
+                        if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+                            .hasMatch(email)) {
+                          return 'Enter a valid email address.';
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _passwordController,
                       enabled: !_isLoading,
-                      obscureText: true,
+                      obscureText: !_isPasswordVisible,
                       autofillHints: const [AutofillHints.password],
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Password',
-                        prefixIcon: Icon(Icons.lock_outline),
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _isPasswordVisible
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _isPasswordVisible = !_isPasswordVisible;
+                            });
+                          },
+                        ),
                       ),
                       validator: (value) => validatePassword(
                         value,
@@ -417,9 +519,6 @@ class _LoginPageState extends State<LoginPage> {
 }
 
 // -------------------- SPLASH SCREEN --------------------
-// --------------------------------------------------
-// SPLASH SCREEN
-// --------------------------------------------------
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -429,80 +528,455 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _isRegistering = false;
+  bool _isLoading = false;
+  bool _isPasswordVisible = false;
+  String? _errorMessage;
+
   @override
   void initState() {
     super.initState();
 
-    Future.delayed(const Duration(seconds: 2), () {
-      if (!mounted) return;
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const MilkCollectionPage()),
-      );
+  Future<void> _authenticate() async {
+    FocusScope.of(context).unfocus();
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
     });
+
+    try {
+      final email = _emailController.text.trim();
+      final password = _passwordController.text;
+      if (_isRegistering) {
+        await FirebaseAuth.instance.createUserWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+      } else {
+        await FirebaseAuth.instance.signInWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+      }
+    } on FirebaseAuthException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = switch (error.code) {
+          'invalid-email' => 'Please enter a valid email address.',
+          'user-not-found' ||
+          'wrong-password' ||
+          'invalid-credential' => 'Email or password is incorrect.',
+          'email-already-in-use' => 'This email is already registered.',
+          'weak-password' => 'Choose a stronger password.',
+          'network-request-failed' => 'Check your internet connection.',
+          _ => error.message ?? 'Authentication failed. Please try again.',
+        };
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _errorMessage = 'Unable to authenticate: $error');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _showPasswordResetDialog(BuildContext context) async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      setState(() => _errorMessage = 'Enter your email address first.');
+      return;
+    }
+
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password reset email sent.')),
+      );
+    } on FirebaseAuthException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage =
+            error.message ?? 'Unable to send a password reset email.';
+      });
+    }
+  }
+
+  Future<void> _startSplashTimer() async {
+    await Future.delayed(const Duration(seconds: 3));
+
+    if (!mounted) return;
+
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const MilkCollectionPage()),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    const emerald = Color(0xFF087F5B);
+    const deepGreen = Color(0xFF075E48);
+    const paleGreen = Color(0xFFE8F5EE);
+
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF006B54), Color(0xFF23A581)],
+      backgroundColor: const Color(0xFFF9FCF8),
+      body: Stack(
+        children: [
+          Positioned(
+            top: -95,
+            right: -75,
+            child: Container(
+              width: 250,
+              height: 250,
+              decoration: BoxDecoration(
+                color: paleGreen.withValues(alpha: 0.75),
+                shape: BoxShape.circle,
+              ),
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 110,
-                height: 110,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.water_drop,
-                  size: 58,
-                  color: Color(0xFF008D70),
-                ),
+          Positioned(
+            bottom: -110,
+            left: -75,
+            child: Container(
+              width: 280,
+              height: 280,
+              decoration: BoxDecoration(
+                color: paleGreen.withValues(alpha: 0.7),
+                shape: BoxShape.circle,
               ),
-              const SizedBox(height: 28),
-              const Text(
-                'DairyTrace',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 36,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.2,
-                ),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'Tracking every drop from farm to table',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white70, fontSize: 16),
-              ),
-              const SizedBox(height: 42),
-              const CircularProgressIndicator(color: Colors.white),
-              const SizedBox(height: 16),
-              const Text('Loading...', style: TextStyle(color: Colors.white)),
-            ],
+            ),
           ),
-        ),
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 28,
+                ),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 440),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Center(
+                          child: Container(
+                            width: 112,
+                            height: 112,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(34),
+                              border: Border.all(
+                                color: const Color(0xFFD9EDE1),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: deepGreen.withValues(alpha: 0.08),
+                                  blurRadius: 28,
+                                  offset: const Offset(0, 12),
+                                ),
+                              ],
+                            ),
+                            child: const Center(
+                              child: DairyTraceLogo(size: 100, showName: false),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        const Text(
+                          'DairyTrace',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 34,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.8,
+                            color: Color(0xFF183C32),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'दूध की हर बूंद, भरोसे के साथ',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: Color(0xFF527568),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _isRegistering
+                              ? 'Create your account to get started'
+                              : 'Sign in to manage milk collections',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF6D8A7D),
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(28),
+                            border: Border.all(color: const Color(0xFFE3EEE7)),
+                            boxShadow: [
+                              BoxShadow(
+                                color: deepGreen.withValues(alpha: 0.06),
+                                blurRadius: 30,
+                                offset: const Offset(0, 12),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                _isRegistering
+                                    ? 'Create account'
+                                    : 'Welcome back!',
+                                style: const TextStyle(
+                                  fontSize: 23,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF183C32),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                _isRegistering
+                                    ? 'Enter your details below.'
+                                    : 'Please enter your details to continue.',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF789084),
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+                              TextFormField(
+                                controller: _emailController,
+                                enabled: !_isLoading,
+                                keyboardType: TextInputType.emailAddress,
+                                autofillHints: const [AutofillHints.email],
+                                decoration: InputDecoration(
+                                  labelText: 'Email address',
+                                  prefixIcon: const Icon(Icons.email_outlined),
+                                  filled: true,
+                                  fillColor: const Color(0xFFF7FAF8),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFE2ECE5),
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: const BorderSide(
+                                      color: emerald,
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                ),
+                                validator: (value) {
+                                  final email = value?.trim() ?? '';
+                                  if (email.isEmpty) {
+                                    return 'Email is required.';
+                                  }
+                                  if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+                                      .hasMatch(email)) {
+                                    return 'Enter a valid email address.';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              const SizedBox(height: 18),
+                              TextFormField(
+                                controller: _passwordController,
+                                enabled: !_isLoading,
+                                obscureText: !_isPasswordVisible,
+                                autofillHints: const [AutofillHints.password],
+                                decoration: InputDecoration(
+                                  labelText: 'Password',
+                                  prefixIcon: const Icon(Icons.lock_outline),
+                                  suffixIcon: IconButton(
+                                    tooltip: _isPasswordVisible
+                                        ? 'Hide password'
+                                        : 'Show password',
+                                    icon: Icon(
+                                      _isPasswordVisible
+                                          ? Icons.visibility_off_outlined
+                                          : Icons.visibility_outlined,
+                                    ),
+                                    onPressed: _isLoading
+                                        ? null
+                                        : () {
+                                            setState(() {
+                                              _isPasswordVisible =
+                                                  !_isPasswordVisible;
+                                            });
+                                          },
+                                  ),
+                                  filled: true,
+                                  fillColor: const Color(0xFFF7FAF8),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFE2ECE5),
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: const BorderSide(
+                                      color: emerald,
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                ),
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'Password is required.';
+                                  }
+                                  if (_isRegistering && value.length < 6) {
+                                    return 'Use at least 6 characters.';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              if (_errorMessage != null) ...[
+                                const SizedBox(height: 16),
+                                Text(
+                                  _errorMessage!,
+                                  style: TextStyle(
+                                    color: Theme.of(context).colorScheme.error,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                              if (!_isRegistering) ...[
+                                const SizedBox(height: 8),
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: TextButton(
+                                    onPressed: _isLoading
+                                        ? null
+                                        : () {
+                                            _showPasswordResetDialog(context);
+                                          },
+                                    child: const Text('Forgot password?'),
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 12),
+                              SizedBox(
+                                height: 54,
+                                child: FilledButton(
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: emerald,
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                  ),
+                                  onPressed: _isLoading ? null : _authenticate,
+                                  child: _isLoading
+                                      ? const SizedBox(
+                                          width: 22,
+                                          height: 22,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                      : Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Text(
+                                              _isRegistering
+                                                  ? 'Create account'
+                                                  : 'Sign In',
+                                              style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            const Icon(
+                                              Icons.arrow_forward_rounded,
+                                              size: 20,
+                                            ),
+                                          ],
+                                        ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Center(
+                                child: TextButton(
+                                  onPressed: _isLoading
+                                      ? null
+                                      : () {
+                                          setState(() {
+                                            _isRegistering = !_isRegistering;
+                                            _errorMessage = null;
+                                          });
+                                        },
+                                  child: Text(
+                                    _isRegistering
+                                        ? 'Already registered? Sign in'
+                                        : 'New to DairyTrace? Create an account',
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      color: deepGreen,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        const Text(
+                          'Simple. Reliable. Made for dairy communities.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF789084),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
-
 // -------------------- MILK COLLECTION --------------------
-// --------------------------------------------------
-// MILK COLLECTION PAGE
-// --------------------------------------------------
 
 class MilkCollectionPage extends StatefulWidget {
   const MilkCollectionPage({super.key, this.collectionService, this.auth});
@@ -521,38 +995,66 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
   final _fatController = TextEditingController();
   final _snfController = TextEditingController();
   final _temperatureController = TextEditingController();
-  String? _qualityAlert;
-  late final CollectionService _collectionService =
-      widget.collectionService ?? CollectionService();
-  late final FirebaseAuth _auth = widget.auth ?? FirebaseAuth.instance;
-
-  late Stream<List<Collection>> _collectionsStream;
+  final _notesController = TextEditingController();
+  final _collectionService = CollectionService();
+  late Stream<QuerySnapshot<Map<String, dynamic>>> _collectionsStream;
 
   bool _isSaving = false;
   String? _errorMessage;
   String? _successMessage;
   final _searchController = TextEditingController();
+  DateTime _collectionDate = DateTime.now();
+  String _session = 'Morning';
+
+  @override
+  void dispose() {
+    _farmerController.dispose();
+    _quantityController.dispose();
+    _fatController.dispose();
+    _snfController.dispose();
+    _temperatureController.dispose();
+    _notesController.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
     super.initState();
-
-    _collectionsStream = _createCollectionsStream();
-  }
-
-  Stream<List<Collection>> _createCollectionsStream() {
-    try {
-      return _collectionService.watchCollections();
-    } catch (error, stackTrace) {
-      debugPrint('Collection stream setup error: $error');
-      debugPrintStack(stackTrace: stackTrace);
-
-      return Stream<List<Collection>>.error(error, stackTrace);
-    }
+    _refreshCollections();
   }
 
   void _refreshCollections() {
-    _collectionsStream = _createCollectionsStream();
+    _collectionsStream = _collectionService.watchCollections();
+  }
+
+  Future<void> _selectCollectionDate() async {
+    final selectedDate = await showDatePicker(
+      context: context,
+      initialDate: _collectionDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+    );
+    if (selectedDate != null) {
+      setState(() => _collectionDate = selectedDate);
+    }
+  }
+
+  String? _validateOptionalMeasurement(
+    String? value, {
+    required String label,
+    required double minimum,
+    required double maximum,
+  }) {
+    if (value == null || value.trim().isEmpty) return null;
+    final measurement = double.tryParse(value.trim());
+    if (measurement == null ||
+        !measurement.isFinite ||
+        measurement < minimum ||
+        measurement > maximum) {
+      return '$label must be between $minimum and $maximum.';
+    }
+    return null;
   }
 
   Future<void> _submitCollection() async {
@@ -589,11 +1091,18 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
 
     try {
       await _collectionService.addCollection(
-        farmerName: farmerName,
-        quantityLitres: quantity,
-        fat: fat,
-        snf: snf,
-        temperature: temperature,
+        farmerName: _farmerController.text.trim(),
+        quantityLitres: double.parse(_quantityController.text.trim()),
+        collectionDate: DateTime(
+          _collectionDate.year,
+          _collectionDate.month,
+          _collectionDate.day,
+        ),
+        session: _session,
+        fatPercent: double.tryParse(_fatController.text.trim()),
+        snfPercent: double.tryParse(_snfController.text.trim()),
+        temperatureC: double.tryParse(_temperatureController.text.trim()),
+        notes: _notesController.text,
       );
 
       if (!mounted) return;
@@ -603,6 +1112,7 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
       _fatController.clear();
       _snfController.clear();
       _temperatureController.clear();
+      _notesController.clear();
       _formKey.currentState?.reset();
 
       setState(() {
@@ -646,93 +1156,14 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
     }
   }
 
-  Future<void> _deleteCollection(Collection collection) async {
-    final confirmed = await UserFeedback.confirm(
-      context,
-      title: 'Delete collection?',
-      message:
-          'Delete the collection for ${collection.farmerName}? This action cannot be undone.',
-      confirmText: 'Delete',
-      destructive: true,
-    );
-    if (!confirmed || !mounted) return;
-
-    try {
-      await _collectionService.deleteCollection(collectionId: collection.id);
-      if (!mounted) return;
-      UserFeedback.showSuccess(
-        context,
-        message: 'Collection deleted successfully.',
-      );
-    } on FirebaseException catch (error, stackTrace) {
-      debugPrint('Firestore delete error: ${error.code} ${error.message}');
-      debugPrintStack(stackTrace: stackTrace);
-      if (!mounted) return;
-      UserFeedback.showError(
-        context,
-        message: error.code == 'permission-denied'
-            ? 'Access denied. You cannot delete this collection.'
-            : 'Could not delete the collection. Please try again.',
-      );
-    } catch (error, stackTrace) {
-      debugPrint('Collection delete error: $error');
-      debugPrintStack(stackTrace: stackTrace);
-      if (!mounted) return;
-      UserFeedback.showError(
-        context,
-        message: 'Could not delete the collection. Please try again.',
-      );
-    }
-  }
-
-  Future<void> _signOut() async {
-    try {
-      await _auth.signOut();
-    } catch (error) {
-      debugPrint('Sign-out error: $error');
-
-      if (!mounted) return;
-
-      UserFeedback.showError(
-        context,
-        message: 'Unable to sign out. Please try again.',
-      );
-    }
-  }
-
-  @override
-  void dispose() {
-    _farmerController.dispose();
-    _quantityController.dispose();
-    _fatController.dispose();
-    _snfController.dispose();
-    _temperatureController.dispose();
-    _searchController.dispose();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'DairyTrace',
+          'New Collection',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
-        centerTitle: false,
-        actions: [
-          IconButton(
-            tooltip: 'Farmers and Centres',
-            onPressed: () => Navigator.of(context)
-                .push(MaterialPageRoute(builder: (_) => const DirectoryPage())),
-            icon: const Icon(Icons.people_outline),
-          ),
-          IconButton(
-            tooltip: 'Sign out',
-            onPressed: _signOut,
-            icon: const Icon(Icons.logout),
-          ),
-        ],
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -741,7 +1172,7 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Text(
-                'New Collection',
+                'Collection Details',
                 style: TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.bold,
@@ -759,6 +1190,62 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _isSaving ? null : _selectCollectionDate,
+                            icon: const Icon(Icons.calendar_today_outlined),
+                            label: Text(
+                              '${_collectionDate.day.toString().padLeft(2, '0')}/'
+                              '${_collectionDate.month.toString().padLeft(2, '0')}/'
+                              '${_collectionDate.year}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size.fromHeight(54),
+                              foregroundColor: const Color(0xFF183C32),
+                              side: const BorderSide(color: Color(0xFFE2ECE5)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            initialValue: _session,
+                            decoration: const InputDecoration(
+                              labelText: 'Session',
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 14,
+                              ),
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'Morning',
+                                child: Text('Morning'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'Evening',
+                                child: Text('Evening'),
+                              ),
+                            ],
+                            onChanged: _isSaving
+                                ? null
+                                : (value) {
+                                    if (value != null) {
+                                      setState(() => _session = value);
+                                    }
+                                  },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
                     TextFormField(
                       controller: _farmerController,
                       enabled: !_isSaving,
@@ -768,7 +1255,23 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
                         hintText: 'Enter farmer name',
                         prefixIcon: Icon(Icons.person_outline),
                       ),
-                      validator: validateFarmerName,
+                      validator: (value) {
+                        final name = value?.trim() ?? '';
+
+                        if (name.isEmpty) {
+                          return 'Farmer name is required.';
+                        }
+
+                        if (name.length < 2) {
+                          return 'Enter at least 2 characters.';
+                        }
+
+                        if (!RegExp(r'^[a-zA-Z ]+$').hasMatch(name)) {
+                          return 'Use letters and spaces only.';
+                        }
+
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
@@ -783,14 +1286,117 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
                         suffixText: 'Litres',
                         prefixIcon: Icon(Icons.water_drop_outlined),
                       ),
-                      validator: validateMilkQuantity,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Milk quantity is required.';
+                        }
+
+                        final quantity = double.tryParse(value.trim());
+
+                        if (quantity == null ||
+                            !quantity.isFinite ||
+                            quantity <= 0) {
+                          return 'Enter a valid quantity greater than 0.';
+                        }
+
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 22),
+                    const Text(
+                      'Quality Parameters (Optional)',
+                      style: TextStyle(
+                        color: Color(0xFF183C32),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _fatController,
+                            enabled: !_isSaving,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            decoration: const InputDecoration(
+                              labelText: 'Fat %',
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 14,
+                              ),
+                            ),
+                            validator: (value) => _validateOptionalMeasurement(
+                              value,
+                              label: 'Fat',
+                              minimum: 0,
+                              maximum: 20,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _snfController,
+                            enabled: !_isSaving,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            decoration: const InputDecoration(
+                              labelText: 'SNF %',
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 14,
+                              ),
+                            ),
+                            validator: (value) => _validateOptionalMeasurement(
+                              value,
+                              label: 'SNF',
+                              minimum: 0,
+                              maximum: 20,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _temperatureController,
+                            enabled: !_isSaving,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                              signed: true,
+                            ),
+                            decoration: const InputDecoration(
+                              labelText: 'Temp °C',
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 14,
+                              ),
+                            ),
+                            validator: (value) => _validateOptionalMeasurement(
+                              value,
+                              label: 'Temperature',
+                              minimum: -5,
+                              maximum: 60,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 16),
-                    _qualityField(_fatController, 'Fat %', percentage: true),
-                    const SizedBox(height: 16),
-                    _qualityField(_snfController, 'SNF %', percentage: true),
-                    const SizedBox(height: 16),
-                    _qualityField(_temperatureController, 'Temperature (°C)'),
+                    TextFormField(
+                      controller: _notesController,
+                      enabled: !_isSaving,
+                      maxLines: 3,
+                      textCapitalization: TextCapitalization.sentences,
+                      decoration: const InputDecoration(
+                        labelText: 'Notes (Optional)',
+                        hintText: 'Add a note about this collection',
+                        alignLabelWithHint: true,
+                      ),
+                    ),
                     const SizedBox(height: 20),
                     SizedBox(
                       height: 52,
@@ -820,14 +1426,6 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
                   message: _errorMessage!,
                   color: Colors.red,
                   icon: Icons.error_outline,
-                ),
-              ],
-              if (_qualityAlert != null) ...[
-                const SizedBox(height: 16),
-                _StatusMessage(
-                  message: _qualityAlert!,
-                  color: Colors.orange.shade900,
-                  icon: Icons.warning_amber,
                 ),
               ],
               if (_successMessage != null) ...[
@@ -907,16 +1505,23 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
   }
 
   Widget _buildCollectionList() {
-    return StreamBuilder<List<Collection>>(
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: _collectionsStream,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          debugPrint('Collection list error: ${snapshot.error}');
-
           final error = snapshot.error;
+
           final isPermissionDenied =
               error is FirebaseException && error.code == 'permission-denied';
 
+          final errorTitle = isPermissionDenied
+              ? 'Access denied'
+              : 'Unable to load collections';
+
+          final errorDescription = isPermissionDenied
+              ? 'You do not have permission to view these collections. '
+                    'Please check your account access or contact your administrator.'
+              : 'Check your internet connection, then try again.';
           return Card(
             child: Padding(
               padding: const EdgeInsets.all(20),
@@ -928,9 +1533,7 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
                     color: Colors.red,
                   ),
                   Text(
-                    isPermissionDenied
-                        ? 'Access denied'
-                        : 'Unable to load collections',
+                    errorTitle,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       fontSize: 16,
@@ -939,10 +1542,7 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    isPermissionDenied
-                        ? 'You do not have permission to view these collections. '
-                              'Please check your account access or contact your administrator.'
-                        : 'Check your internet connection, then try again.',
+                    errorDescription,
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.grey.shade700),
                   ),
@@ -974,17 +1574,18 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
           );
         }
 
-        final collections = snapshot.data ?? <Collection>[];
-        final query = _searchController.text.trim().toLowerCase();
-        final filteredCollections = collections
-            .where(
-              (collection) =>
-                  collection.farmerName.toLowerCase().contains(query),
-            )
-            .toList();
+        final documents = (snapshot.data?.docs ?? []).where((document) {
+          final farmerName = (document.data()['farmerName'] as String? ?? '')
+              .toLowerCase();
 
-        if (filteredCollections.isEmpty) {
-          final isSearching = query.isNotEmpty;
+          return farmerName.contains(
+            _searchController.text.trim().toLowerCase(),
+          );
+        }).toList();
+
+        if (documents.isEmpty) {
+          final isSearching = _searchController.text.trim().isNotEmpty;
+
           return Card(
             child: Padding(
               padding: const EdgeInsets.all(24),

@@ -5,12 +5,12 @@ import '../models/collection.dart';
 import '../utils/quality_checker.dart';
 
 class CollectionService {
-  CollectionService({FirebaseFirestore? firestore, FirebaseAuth? auth})
-    : _firestore = firestore ?? FirebaseFirestore.instance,
-      _auth = auth ?? FirebaseAuth.instance;
+  CollectionService({FirebaseFirestore? firestore})
+    : _collections = (firestore ?? FirebaseFirestore.instance).collection(
+        'collections',
+      );
 
-  final FirebaseFirestore _firestore;
-  final FirebaseAuth _auth;
+  final CollectionReference<Map<String, dynamic>> _collections;
 
   CollectionReference<Map<String, dynamic>> get _collections =>
       _firestore.collection('collections');
@@ -18,9 +18,12 @@ class CollectionService {
   Future<String> addCollection({
     required String farmerName,
     required double quantityLitres,
-    required double fat,
-    required double snf,
-    required double temperature,
+    required DateTime collectionDate,
+    required String session,
+    double? fatPercent,
+    double? snfPercent,
+    double? temperatureC,
+    String? notes,
   }) async {
     final user = _auth.currentUser;
 
@@ -28,35 +31,23 @@ class CollectionService {
       throw StateError('Please sign in before recording a collection.');
     }
 
-    final normalizedName = farmerName.trim();
+    final data = <String, dynamic>{
+      'farmerName': farmerName.trim(),
+      'quantityLitres': quantityLitres,
+      'collectionDate': Timestamp.fromDate(collectionDate),
+      'session': session,
+      'createdAt': FieldValue.serverTimestamp(),
+      'createdBy': user.uid,
+    };
 
-    if (normalizedName.length < 2) {
-      throw ArgumentError('Farmer name must contain at least 2 characters.');
+    if (fatPercent != null) data['fatPercent'] = fatPercent;
+    if (snfPercent != null) data['snfPercent'] = snfPercent;
+    if (temperatureC != null) data['temperatureC'] = temperatureC;
+    if (notes != null && notes.trim().isNotEmpty) {
+      data['notes'] = notes.trim();
     }
 
-    if (!quantityLitres.isFinite || quantityLitres <= 0) {
-      throw ArgumentError('Milk quantity must be greater than zero.');
-    }
-
-    final quality = QualityChecker.check(
-      fat: fat,
-      snf: snf,
-      temperature: temperature,
-    );
-    final collection = Collection(
-      id: '',
-      farmerName: normalizedName,
-      quantityLitres: quantityLitres,
-      collectionDate: null,
-      createdBy: user.uid,
-      fat: fat,
-      snf: snf,
-      temperature: temperature,
-      qualityStatus: quality.status,
-    );
-
-    final document = await _collections.add(collection.toFirestore());
-    return document.id;
+    await _collections.add(data);
   }
 
   Stream<List<Collection>> watchCollections() {
