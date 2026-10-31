@@ -1,0 +1,101 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Initial operator-owned directory; cooperative role provisioning follows.
+    function directoryOwner(data) {
+      return request.auth != null && data.createdBy == request.auth.uid;
+    }
+    function directoryBase(data) {
+      return directoryOwner(data)
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 100
+        && data.village is string && data.village.size() >= 2 && data.village.size() <= 200
+        && data.status == 'ACTIVE' && data.createdAt == request.time;
+    }
+    match /collectionCenters/{centerId} {
+      allow read: if directoryOwner(resource.data);
+      allow create: if directoryBase(request.resource.data)
+        && request.resource.data.keys().hasAll(['name', 'village', 'status', 'createdBy', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['name', 'village', 'status', 'createdBy', 'createdAt']);
+      allow update, delete: if false;
+    }
+    match /farmers/{farmerId} {
+      allow read: if directoryOwner(resource.data);
+      allow create: if directoryBase(request.resource.data)
+        && request.resource.data.keys().hasAll(['name', 'village', 'phone', 'centerId', 'status', 'createdBy', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['name', 'village', 'phone', 'centerId', 'status', 'createdBy', 'createdAt'])
+        && request.resource.data.phone is string
+        && request.resource.data.phone.matches('^[+]?[0-9][0-9 -]{5,18}[0-9]$')
+        && request.resource.data.centerId is string
+        && request.resource.data.centerId.matches('^[^/]+$')
+        && exists(/databases/$(database)/documents/collectionCenters/$(request.resource.data.centerId))
+        && get(/databases/$(database)/documents/collectionCenters/$(request.resource.data.centerId)).data.createdBy == request.auth.uid
+        && get(/databases/$(database)/documents/collectionCenters/$(request.resource.data.centerId)).data.status == 'ACTIVE';
+      allow update, delete: if false;
+    }
+
+    match /collections/{collectionId} {
+      function signedIn() {
+        return request.auth != null;
+      }
+
+      function ownsExistingRecord() {
+        return signedIn()
+          && resource.data.createdBy == request.auth.uid;
+      }
+
+      function validFields(data) {
+        return data.keys().hasAll([
+          'farmerName',
+          'quantityLitres',
+          'collectionDate',
+          'createdAt',
+          'createdBy'
+        ])
+        && data.keys().hasOnly([
+          'farmerName',
+          'quantityLitres',
+          'collectionDate',
+          'createdAt',
+          'createdBy', 'fat', 'snf', 'temperature', 'qualityStatus'
+        ])
+        && data.farmerName is string
+        && data.farmerName.size() >= 2
+        && data.farmerName.size() <= 100
+        && data.quantityLitres is number
+        && data.quantityLitres > 0
+        && data.createdBy is string
+        && validQuality(data);
+      }
+
+      function validQuality(data) {
+        return (!data.keys().hasAny(['fat', 'snf', 'temperature', 'qualityStatus']))
+          || (data.keys().hasAll(['fat', 'snf', 'temperature', 'qualityStatus'])
+            && data.fat is number && data.fat >= 0 && data.fat <= 100
+            && data.snf is number && data.snf >= 0 && data.snf <= 100
+            && data.temperature is number && data.temperature >= 0
+            && data.qualityStatus == ((data.fat >= 3 && data.snf >= 8 && data.temperature <= 10)
+              ? 'ACCEPTED' : 'ALERT'));
+      }
+
+      allow read: if ownsExistingRecord();
+
+      allow create: if signedIn()
+        && validFields(request.resource.data)
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.collectionDate == request.time
+        && request.resource.data.createdAt == request.time;
+
+      allow update: if ownsExistingRecord()
+        && validFields(request.resource.data)
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.collectionDate == resource.data.collectionDate
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.diff(resource.data)
+             .affectedKeys()
+             .hasOnly(['farmerName', 'quantityLitres']);
+
+      allow delete: if ownsExistingRecord();
+    }
+  }
+}

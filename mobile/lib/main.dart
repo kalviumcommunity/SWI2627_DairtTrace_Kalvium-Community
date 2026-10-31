@@ -5,7 +5,12 @@ import 'package:flutter/material.dart';
 
 import 'app_shell.dart';
 import 'firebase_options.dart';
+import 'form_validators.dart';
+import 'models/collection.dart';
+import 'screens/directory_page.dart';
 import 'services/collection_service.dart';
+import 'utils/user_feedback.dart';
+import 'utils/quality_checker.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -109,6 +114,48 @@ class DairyTraceLogo extends StatelessWidget {
     );
   }
 }
+
+class FirebaseStartupErrorScreen extends StatelessWidget {
+  const FirebaseStartupErrorScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.cloud_off_rounded,
+                size: 64,
+                color: Colors.green,
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Unable to start DairyTrace',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'DairyTrace could not connect to its services. '
+                'Please check your internet connection and app '
+                'configuration, then restart the app.',
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// --------------------------------------------------
+// APP
+// --------------------------------------------------
 
 class DairyTraceApp extends StatelessWidget {
   const DairyTraceApp({super.key, this.initializationError});
@@ -248,10 +295,14 @@ class _AuthGateState extends State<AuthGate> {
   }
 }
 
-// -------------------- LOGIN AND REGISTRATION --------------------
+// --------------------------------------------------
+// LOGIN AND REGISTRATION
+// --------------------------------------------------
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  const LoginPage({super.key, this.auth});
+
+  final FirebaseAuth? auth;
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -261,18 +312,12 @@ class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  late final FirebaseAuth _auth = widget.auth ?? FirebaseAuth.instance;
 
   bool _isRegistering = false;
   bool _isLoading = false;
   bool _isPasswordVisible = false;
   String? _errorMessage;
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
 
   Future<void> _authenticate() async {
     FocusScope.of(context).unfocus();
@@ -289,12 +334,12 @@ class _LoginPageState extends State<LoginPage> {
       final password = _passwordController.text;
 
       if (_isRegistering) {
-        await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        await _auth.createUserWithEmailAndPassword(
           email: email,
           password: password,
         );
       } else {
-        await FirebaseAuth.instance.signInWithEmailAndPassword(
+        await _auth.signInWithEmailAndPassword(
           email: email,
           password: password,
         );
@@ -311,20 +356,30 @@ class _LoginPageState extends State<LoginPage> {
           'email-already-in-use' => 'This email is already registered.',
           'weak-password' => 'Choose a stronger password.',
           'network-request-failed' => 'Check your internet connection.',
-          _ => error.message ?? 'Authentication failed. Please try again.',
+          'too-many-requests' => 'Too many attempts. Please try again later.',
+          _ => 'Authentication failed. Please try again.',
         };
       });
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
 
       setState(() {
         _errorMessage = 'Something went wrong. Please try again.';
       });
+
+      debugPrint('Authentication error: $error');
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
   }
 
   @override
@@ -335,7 +390,7 @@ class _LoginPageState extends State<LoginPage> {
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 440),
+              constraints: const BoxConstraints(maxWidth: 420),
               child: Form(
                 key: _formKey,
                 child: Column(
@@ -347,7 +402,7 @@ class _LoginPageState extends State<LoginPage> {
                       size: 72,
                     ),
                     const SizedBox(height: 16),
-                    const Text(
+                    Text(
                       'DairyTrace',
                       textAlign: TextAlign.center,
                       style: TextStyle(
@@ -407,30 +462,24 @@ class _LoginPageState extends State<LoginPage> {
                           },
                         ),
                       ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Password is required.';
-                        }
-                        if (_isRegistering && value.length < 6) {
-                          return 'Use at least 6 characters.';
-                        }
-                        return null;
-                      },
+                      validator: (value) => validatePassword(
+                        value,
+                        isRegistering: _isRegistering,
+                      ),
                     ),
+                    const SizedBox(height: 16),
                     if (_errorMessage != null) ...[
-                      const SizedBox(height: 16),
                       Text(
                         _errorMessage!,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
+                        style: const TextStyle(color: Colors.red),
+                        textAlign: TextAlign.center,
                       ),
+                      const SizedBox(height: 12),
                     ],
-                    const SizedBox(height: 24),
                     FilledButton(
                       onPressed: _isLoading ? null : _authenticate,
                       child: Padding(
-                        padding: const EdgeInsets.all(14),
+                        padding: const EdgeInsets.all(12),
                         child: _isLoading
                             ? const SizedBox(
                                 width: 22,
@@ -454,8 +503,8 @@ class _LoginPageState extends State<LoginPage> {
                             },
                       child: Text(
                         _isRegistering
-                            ? 'Already registered? Sign in'
-                            : 'New to DairyTrace? Create an account',
+                            ? 'Already have an account? Sign in'
+                            : 'New user? Create an account',
                       ),
                     ),
                   ],
@@ -490,8 +539,6 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _startSplashTimer();
-  }
 
   @override
   void dispose() {
@@ -932,7 +979,10 @@ class _SplashScreenState extends State<SplashScreen> {
 // -------------------- MILK COLLECTION --------------------
 
 class MilkCollectionPage extends StatefulWidget {
-  const MilkCollectionPage({super.key});
+  const MilkCollectionPage({super.key, this.collectionService, this.auth});
+
+  final CollectionService? collectionService;
+  final FirebaseAuth? auth;
 
   @override
   State<MilkCollectionPage> createState() => _MilkCollectionPageState();
@@ -1008,16 +1058,36 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
   }
 
   Future<void> _submitCollection() async {
-    FocusScope.of(context).unfocus();
+    if (_isSaving) return;
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    final fat = double.parse(_fatController.text.trim());
+    final snf = double.parse(_snfController.text.trim());
+    final temperature = double.parse(_temperatureController.text.trim());
+    final quality = QualityChecker.check(
+      fat: fat,
+      snf: snf,
+      temperature: temperature,
+    );
+    final farmerName = _farmerController.text.trim();
+    final quantity = double.tryParse(_quantityController.text.trim());
+
+    if (quantity == null || !quantity.isFinite || quantity <= 0) {
+      setState(() {
+        _errorMessage = 'Enter a valid quantity greater than zero.';
+        _successMessage = null;
+      });
+      return;
+    }
 
     setState(() {
+      _isSaving = true;
+      _qualityAlert = null;
       _errorMessage = null;
       _successMessage = null;
     });
-
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() => _isSaving = true);
 
     try {
       await _collectionService.addCollection(
@@ -1046,22 +1116,39 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
       _formKey.currentState?.reset();
 
       setState(() {
-        _successMessage = 'Collection saved successfully!';
+        if (quality.isAccepted) {
+          _successMessage = 'Collection saved successfully! Quality: ACCEPTED.';
+        } else {
+          _qualityAlert = 'Collection saved. Quality ALERT: ${quality.message}';
+        }
       });
-    } on FirebaseException catch (error) {
+      if (quality.isAccepted) {
+        UserFeedback.showSuccess(context, message: _successMessage!);
+      } else {
+        UserFeedback.showError(context, message: _qualityAlert!);
+      }
+    } on FirebaseException catch (error, stackTrace) {
+      debugPrint('Firestore save error: ${error.code} ${error.message}');
+      debugPrintStack(stackTrace: stackTrace);
+
       if (!mounted) return;
 
-      setState(() {
-        _errorMessage = error.code == 'permission-denied'
-            ? 'Access denied. Check your Firestore security rules.'
-            : 'Could not save the collection. Please try again.';
-      });
-    } catch (_) {
+      final message = error.code == 'permission-denied'
+          ? 'Access denied. Check your Firestore security rules.'
+          : 'Could not save the collection. Please try again.';
+      setState(() => _errorMessage = message);
+      UserFeedback.showError(context, message: message);
+    } catch (error, stackTrace) {
+      debugPrint('Collection save error: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
       if (!mounted) return;
 
-      setState(() {
-        _errorMessage = 'Could not save the collection. Please try again.';
-      });
+      final message = error is ArgumentError || error is StateError
+          ? error.toString()
+          : 'Could not save the collection. Please try again.';
+      setState(() => _errorMessage = message);
+      UserFeedback.showError(context, message: message);
     } finally {
       if (mounted) {
         setState(() => _isSaving = false);
@@ -1402,6 +1489,21 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
     );
   }
 
+  Widget _qualityField(
+    TextEditingController controller,
+    String label, {
+    bool percentage = false,
+  }) {
+    return TextFormField(
+      controller: controller,
+      enabled: !_isSaving,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      decoration: InputDecoration(labelText: label),
+      validator: (value) =>
+          validateQualityReading(value, label: label, percentage: percentage),
+    );
+  }
+
   Widget _buildCollectionList() {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: _collectionsStream,
@@ -1518,17 +1620,15 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
         return ListView.separated(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          itemCount: documents.length,
+          itemCount: filteredCollections.length,
           separatorBuilder: (_, _) => const SizedBox(height: 8),
           itemBuilder: (context, index) {
-            final data = documents[index].data();
-            final farmerName = data['farmerName'] as String? ?? 'Unknown';
-            final quantity = data['quantityLitres'] as num? ?? 0;
-            final timestamp = data['collectionDate'] as Timestamp?;
+            final collection = filteredCollections[index];
+            final date = collection.collectionDate;
 
-            final dateText = timestamp == null
+            final dateText = date == null
                 ? 'Date pending'
-                : timestamp.toDate().toLocal().toString().substring(0, 16);
+                : date.toLocal().toString().substring(0, 16);
 
             return Card(
               color: Colors.white,
@@ -1537,14 +1637,46 @@ class _MilkCollectionPageState extends State<MilkCollectionPage> {
                   backgroundColor: Colors.green.shade100,
                   child: Icon(Icons.water_drop, color: Colors.green.shade800),
                 ),
-                title: Text(farmerName),
-                subtitle: Text(dateText),
-                trailing: Text(
-                  '${quantity.toStringAsFixed(2)} L',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                  ),
+                title: Text(collection.farmerName),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(dateText),
+                    Text(
+                      'Fat: ${collection.fat?.toStringAsFixed(1) ?? "—"}% · SNF: ${collection.snf?.toStringAsFixed(1) ?? "—"}%',
+                    ),
+                    Text(
+                      'Temperature: ${collection.temperature?.toStringAsFixed(1) ?? "—"}°C',
+                    ),
+                    Text(
+                      'Quality: ${collection.qualityStatus}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: collection.qualityStatus == 'ALERT'
+                            ? Colors.orange.shade900
+                            : collection.qualityStatus == 'ACCEPTED'
+                            ? Colors.green.shade700
+                            : Colors.grey.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${collection.quantityLitres.toStringAsFixed(2)} L',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Delete collection',
+                      icon: const Icon(Icons.delete_outline, color: Colors.red),
+                      onPressed: () => _deleteCollection(collection),
+                    ),
+                  ],
                 ),
               ),
             );

@@ -1,6 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../models/collection.dart';
+import '../utils/quality_checker.dart';
+
 class CollectionService {
   CollectionService({FirebaseFirestore? firestore})
     : _collections = (firestore ?? FirebaseFirestore.instance).collection(
@@ -9,7 +12,10 @@ class CollectionService {
 
   final CollectionReference<Map<String, dynamic>> _collections;
 
-  Future<void> addCollection({
+  CollectionReference<Map<String, dynamic>> get _collections =>
+      _firestore.collection('collections');
+
+  Future<String> addCollection({
     required String farmerName,
     required double quantityLitres,
     required DateTime collectionDate,
@@ -19,7 +25,7 @@ class CollectionService {
     double? temperatureC,
     String? notes,
   }) async {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = _auth.currentUser;
 
     if (user == null) {
       throw StateError('Please sign in before recording a collection.');
@@ -44,8 +50,8 @@ class CollectionService {
     await _collections.add(data);
   }
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> watchCollections() {
-    final user = FirebaseAuth.instance.currentUser;
+  Stream<List<Collection>> watchCollections() {
+    final user = _auth.currentUser;
 
     if (user == null) {
       throw StateError('Please sign in to view collections.');
@@ -54,6 +60,29 @@ class CollectionService {
     return _collections
         .where('createdBy', isEqualTo: user.uid)
         .orderBy('collectionDate', descending: true)
-        .snapshots();
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs
+              .map(Collection.fromFirestore)
+              .toList(growable: false),
+        );
+  }
+
+  /// Deletes a collection by its Firestore document ID.
+  /// Firestore security rules must enforce document ownership.
+  Future<void> deleteCollection({required String collectionId}) async {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      throw StateError('Please sign in before deleting a collection.');
+    }
+
+    final normalizedId = collectionId.trim();
+
+    if (normalizedId.isEmpty) {
+      throw ArgumentError('Collection ID cannot be empty.');
+    }
+
+    await _collections.doc(normalizedId).delete();
   }
 }
