@@ -3,6 +3,17 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import 'services/collection_service.dart';
+import 'services/operations_service.dart';
+import 'services/directory_service.dart';
+import 'screens/directory_page.dart';
+import 'utils/quality_checker.dart';
+import 'utils/user_feedback.dart';
+import 'form_validators.dart';
+
+import 'package:flutter/services.dart';
+
+part 'screens/operations_pages.dart';
+part 'screens/collection_pages.dart';
 
 const _green = Color(0xFF00866A);
 const _deepGreen = Color(0xFF183C32);
@@ -108,7 +119,16 @@ class _SplashCircle extends StatelessWidget {
 }
 
 class DairyTraceShell extends StatefulWidget {
-  const DairyTraceShell({super.key, required this.onNewCollection});
+  const DairyTraceShell({
+    super.key,
+    required this.onNewCollection,
+    this.collectionService,
+    this.operations,
+    this.auth,
+  });
+  final CollectionService? collectionService;
+  final OperationsService? operations;
+  final FirebaseAuth? auth;
 
   final VoidCallback onNewCollection;
 
@@ -117,7 +137,10 @@ class DairyTraceShell extends StatefulWidget {
 }
 
 class _DairyTraceShellState extends State<DairyTraceShell> {
-  final _collectionService = CollectionService();
+  late final _collectionService =
+      widget.collectionService ?? CollectionService();
+  late final operations = widget.operations ?? OperationsService();
+  late final auth = widget.auth ?? FirebaseAuth.instance;
   late Stream<QuerySnapshot<Map<String, dynamic>>> _collections;
   int _selectedTab = 0;
 
@@ -128,7 +151,7 @@ class _DairyTraceShellState extends State<DairyTraceShell> {
   }
 
   void _refreshCollections() {
-    _collections = _collectionService.watchCollections();
+    _collections = _collectionService.watchDocuments();
   }
 
   void _openCollectionForm() {
@@ -139,14 +162,15 @@ class _DairyTraceShellState extends State<DairyTraceShell> {
   Widget build(BuildContext context) {
     final tabs = [
       _HomeTab(
+        displayName: auth.currentUser?.displayName ?? 'Operator',
         collections: _collections,
         onRefresh: () => setState(_refreshCollections),
         onNewCollection: _openCollectionForm,
         onOpenModule: _openModule,
       ),
-      _FarmersTab(collections: _collections),
-      _BatchesTab(onNewCollection: _openCollectionForm),
-      _MoreTab(onOpenModule: _openModule),
+      UsersPage(service: operations),
+      OperationsPage(module: 'Batches', embedded: true, service: operations),
+      _MoreTab(onOpenModule: _openModule, auth: auth),
     ];
 
     return Scaffold(
@@ -157,6 +181,8 @@ class _DairyTraceShellState extends State<DairyTraceShell> {
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       floatingActionButton: FloatingActionButton(
         heroTag: 'new-collection',
+        elevation: 0,
+        highlightElevation: 0,
         tooltip: 'New collection',
         onPressed: _openCollectionForm,
         backgroundColor: _green,
@@ -211,9 +237,13 @@ class _DairyTraceShellState extends State<DairyTraceShell> {
   }
 
   void _openModule(String title) {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute<void>(builder: (_) => _ModulePage(title: title)));
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ['Settings', 'Help & Support', 'About'].contains(title)
+            ? _InformationPage(title: title)
+            : OperationsPage(module: title, service: operations),
+      ),
+    );
   }
 }
 
@@ -248,6 +278,8 @@ class _NavItem extends StatelessWidget {
               const SizedBox(height: 3),
               Text(
                 label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: color,
                   fontSize: 10,
@@ -262,26 +294,36 @@ class _NavItem extends StatelessWidget {
   }
 }
 
-class _HomeTab extends StatelessWidget {
+class _HomeTab extends StatefulWidget {
   const _HomeTab({
+    required this.displayName,
     required this.collections,
     required this.onRefresh,
     required this.onNewCollection,
     required this.onOpenModule,
   });
 
+  final String displayName;
   final Stream<QuerySnapshot<Map<String, dynamic>>> collections;
   final VoidCallback onRefresh;
   final VoidCallback onNewCollection;
   final ValueChanged<String> onOpenModule;
+  @override
+  State<_HomeTab> createState() => _HomeTabState();
+}
 
+class _HomeTabState extends State<_HomeTab> {
+  DateTime month = DateTime(DateTime.now().year, DateTime.now().month);
   @override
   Widget build(BuildContext context) {
+    final onOpenModule = widget.onOpenModule;
+    final onNewCollection = widget.onNewCollection;
+    final onRefresh = widget.onRefresh;
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: collections,
+      stream: widget.collections,
       builder: (context, snapshot) {
         final docs = snapshot.data?.docs ?? [];
-        final now = DateTime.now();
+        final now = month;
         final monthDocs = docs.where((doc) {
           final timestamp = doc.data()['collectionDate'] as Timestamp?;
           if (timestamp == null) return false;
@@ -293,16 +335,16 @@ class _HomeTab extends StatelessWidget {
           (total, doc) =>
               total + ((doc.data()['quantityLitres'] as num?)?.toDouble() ?? 0),
         );
-        final farmers = docs
-            .map((doc) => doc.data()['farmerName'] as String? ?? '')
+        final farmers = monthDocs
+            .map((doc) => doc.data()['farmerId'] as String? ?? '')
             .where((name) => name.isNotEmpty)
             .toSet()
             .length;
         final qualityTests = monthDocs.where((doc) {
           final data = doc.data();
-          return data['fatPercent'] != null ||
-              data['snfPercent'] != null ||
-              data['temperatureC'] != null;
+          return data['fat'] != null ||
+              data['snf'] != null ||
+              data['temperature'] != null;
         }).length;
 
         return CustomScrollView(
@@ -312,10 +354,46 @@ class _HomeTab extends StatelessWidget {
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
                   _HomeHeader(
+                    displayName: widget.displayName,
                     onNotifications: () => onOpenModule('Notifications'),
                   ),
                   const SizedBox(height: 20),
-                  _MonthSelector(),
+                  Row(
+                    children: [
+                      IconButton(
+                        tooltip: 'Previous month',
+                        onPressed: () => setState(
+                          () => month = DateTime(month.year, month.month - 1),
+                        ),
+                        icon: const Icon(Icons.chevron_left),
+                      ),
+                      Expanded(
+                        child: Text(
+                          '${_monthName(month.month)} ${month.year}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Next month',
+                        onPressed:
+                            month.isBefore(
+                              DateTime(
+                                DateTime.now().year,
+                                DateTime.now().month,
+                              ),
+                            )
+                            ? () => setState(
+                                () => month = DateTime(
+                                  month.year,
+                                  month.month + 1,
+                                ),
+                              )
+                            : null,
+                        icon: const Icon(Icons.chevron_right),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 16),
                   Row(
                     children: [
@@ -350,7 +428,7 @@ class _HomeTab extends StatelessWidget {
                     children: [
                       Expanded(
                         child: _MetricCard(
-                          label: 'Active Farmers',
+                          label: 'Farmers Served',
                           value: _metricValue(snapshot, '$farmers'),
                           suffix: 'farmers',
                           icon: Icons.people_alt_rounded,
@@ -439,24 +517,20 @@ String _metricValue(
 }
 
 class _HomeHeader extends StatelessWidget {
-  const _HomeHeader({required this.onNotifications});
+  const _HomeHeader({required this.onNotifications, required this.displayName});
+  final String displayName;
 
   final VoidCallback onNotifications;
 
   @override
   Widget build(BuildContext context) {
-    final displayName = FirebaseAuth.instance.currentUser?.displayName
-        ?.trim()
-        .split(' ')
-        .first;
     return Row(
       children: [
         CircleAvatar(
           radius: 22,
           backgroundColor: const Color(0xFFD9F2E6),
           child: Text(
-            (displayName?.isNotEmpty == true ? displayName![0] : 'D')
-                .toUpperCase(),
+            (displayName.isNotEmpty ? displayName[0] : 'D').toUpperCase(),
             style: const TextStyle(color: _green, fontWeight: FontWeight.w800),
           ),
         ),
@@ -465,12 +539,16 @@ class _HomeHeader extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Good morning,',
+              Text(
+                DateTime.now().hour < 12
+                    ? 'Good morning,'
+                    : DateTime.now().hour < 17
+                    ? 'Good afternoon,'
+                    : 'Good evening,',
                 style: TextStyle(color: _mutedText, fontSize: 12),
               ),
               Text(
-                displayName?.isNotEmpty == true ? displayName! : 'Admin',
+                displayName.isNotEmpty ? displayName : 'Operator',
                 style: const TextStyle(
                   color: _deepGreen,
                   fontSize: 17,
@@ -490,29 +568,6 @@ class _HomeHeader extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _MonthSelector extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE6EEEA)),
-      ),
-      child: const Row(
-        children: [
-          Icon(Icons.calendar_month_outlined, color: _green, size: 18),
-          SizedBox(width: 8),
-          Text('This Month', style: TextStyle(fontWeight: FontWeight.w600)),
-          Spacer(),
-          Icon(Icons.keyboard_arrow_down_rounded, color: _mutedText),
-        ],
-      ),
     );
   }
 }
@@ -560,9 +615,8 @@ class _MetricCard extends StatelessWidget {
             style: const TextStyle(color: _mutedText, fontSize: 11),
           ),
           const SizedBox(height: 3),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.end,
             children: [
               Text(
                 value,
@@ -573,12 +627,9 @@ class _MetricCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 4),
-              Flexible(
-                child: Text(
-                  suffix,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: _mutedText, fontSize: 10),
-                ),
+              Text(
+                suffix,
+                style: const TextStyle(color: _mutedText, fontSize: 10),
               ),
             ],
           ),
@@ -771,256 +822,9 @@ class _QuickAccessGrid extends StatelessWidget {
   }
 }
 
-class _FarmersTab extends StatefulWidget {
-  const _FarmersTab({required this.collections});
-
-  final Stream<QuerySnapshot<Map<String, dynamic>>> collections;
-
-  @override
-  State<_FarmersTab> createState() => _FarmersTabState();
-}
-
-class _FarmersTabState extends State<_FarmersTab> {
-  String _search = '';
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: widget.collections,
-      builder: (context, snapshot) {
-        final farmerTotals = <String, double>{};
-        for (final doc in snapshot.data?.docs ?? []) {
-          final data = doc.data();
-          final name = data['farmerName'] as String? ?? '';
-          if (name.isNotEmpty) {
-            farmerTotals.update(
-              name,
-              (total) =>
-                  total + ((data['quantityLitres'] as num?)?.toDouble() ?? 0),
-              ifAbsent: () => (data['quantityLitres'] as num?)?.toDouble() ?? 0,
-            );
-          }
-        }
-        final farmers =
-            farmerTotals.entries
-                .where((entry) => entry.key.toLowerCase().contains(_search))
-                .toList()
-              ..sort((a, b) => a.key.compareTo(b.key));
-
-        return Column(
-          children: [
-            _PageHeader(
-              title: 'Farmers',
-              subtitle: '${farmerTotals.length} registered farmers',
-              icon: Icons.people_alt_outlined,
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-              child: TextField(
-                onChanged: (value) =>
-                    setState(() => _search = value.trim().toLowerCase()),
-                decoration: _searchDecoration('Search by name or phone'),
-              ),
-            ),
-            Expanded(
-              child: snapshot.hasError
-                  ? const _LoadError()
-                  : snapshot.connectionState == ConnectionState.waiting
-                  ? const Center(child: CircularProgressIndicator())
-                  : farmers.isEmpty
-                  ? _EmptyCard(
-                      icon: Icons.people_outline_rounded,
-                      title: _search.isEmpty
-                          ? 'No farmers yet'
-                          : 'No matching farmers',
-                      message: _search.isEmpty
-                          ? 'Farmers will be listed here after their first collection is recorded.'
-                          : 'Try a different search term.',
-                    )
-                  : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                      itemCount: farmers.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 9),
-                      itemBuilder: (context, index) {
-                        final farmer = farmers[index];
-                        return _FarmerCard(
-                          name: farmer.key,
-                          totalLitres: farmer.value,
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => _FarmerDetailsPage(
-                                name: farmer.key,
-                                totalLitres: farmer.value,
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _FarmerCard extends StatelessWidget {
-  const _FarmerCard({
-    required this.name,
-    required this.totalLitres,
-    required this.onTap,
-  });
-
-  final String name;
-  final double totalLitres;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      color: Colors.white,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15),
-        side: const BorderSide(color: Color(0xFFE7EEEA)),
-      ),
-      child: ListTile(
-        onTap: onTap,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-        leading: CircleAvatar(
-          backgroundColor: const Color(0xFFE3F5EB),
-          child: Text(
-            name.isEmpty ? '?' : name[0].toUpperCase(),
-            style: const TextStyle(color: _green, fontWeight: FontWeight.w700),
-          ),
-        ),
-        title: Text(
-          name,
-          style: const TextStyle(
-            color: _deepGreen,
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        subtitle: Text(
-          '${totalLitres.toStringAsFixed(1)} L total recorded',
-          style: const TextStyle(color: _mutedText, fontSize: 11),
-        ),
-        trailing: const Icon(Icons.chevron_right_rounded, color: _mutedText),
-      ),
-    );
-  }
-}
-
-class _FarmerDetailsPage extends StatelessWidget {
-  const _FarmerDetailsPage({required this.name, required this.totalLitres});
-
-  final String name;
-  final double totalLitres;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _pageBackground,
-      appBar: AppBar(title: const Text('Farmer Details')),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          Container(
-            padding: const EdgeInsets.all(22),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFFE7EEEA)),
-            ),
-            child: Column(
-              children: [
-                CircleAvatar(
-                  radius: 34,
-                  backgroundColor: const Color(0xFFE3F5EB),
-                  child: Text(
-                    name.isEmpty ? '?' : name[0].toUpperCase(),
-                    style: const TextStyle(
-                      color: _green,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  name,
-                  style: const TextStyle(
-                    color: _deepGreen,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                const Text('Farmer', style: TextStyle(color: _mutedText)),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-          _DetailRow(
-            label: 'Total milk collected',
-            value: '${totalLitres.toStringAsFixed(1)} L',
-          ),
-          const _DetailRow(label: 'Account status', value: 'Active'),
-          const SizedBox(height: 14),
-          const Text(
-            'Collection history',
-            style: TextStyle(
-              color: _deepGreen,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 8),
-          const _EmptyCard(
-            icon: Icons.history_rounded,
-            title: 'Collection history',
-            message:
-                'Individual collection history is available in Collections.',
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _BatchesTab extends StatelessWidget {
-  const _BatchesTab({required this.onNewCollection});
-
-  final VoidCallback onNewCollection;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        const _PageHeader(
-          title: 'Batch tracking',
-          subtitle: 'Follow milk from collection to processing',
-          icon: Icons.inventory_2_outlined,
-        ),
-        Expanded(
-          child: _EmptyCard(
-            icon: Icons.inventory_2_outlined,
-            title: 'No batches yet',
-            message: 'Batch records will appear here once collections are grouped for processing.',
-            action: 'Create a collection',
-            onAction: onNewCollection,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _MoreTab extends StatelessWidget {
-  const _MoreTab({required this.onOpenModule});
+  const _MoreTab({required this.onOpenModule, required this.auth});
+  final FirebaseAuth auth;
 
   final ValueChanged<String> onOpenModule;
 
@@ -1028,7 +832,7 @@ class _MoreTab extends StatelessWidget {
     ('Quality Tests', 'Review milk quality results', Icons.science_outlined),
     (
       'Reconciliation',
-      'Collection totals and farmer payouts',
+      'Farmer quantity and quality totals',
       Icons.account_balance_wallet_outlined,
     ),
     ('Disputes', 'Track and resolve reported issues', Icons.gavel_rounded),
@@ -1041,7 +845,7 @@ class _MoreTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final email = FirebaseAuth.instance.currentUser?.email ?? '';
+    final email = auth.currentUser?.email ?? '';
     return Column(
       children: [
         const _PageHeader(
@@ -1072,7 +876,7 @@ class _MoreTab extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'DairyTrace Admin',
+                            'DairyTrace Operator',
                             style: TextStyle(
                               color: _deepGreen,
                               fontWeight: FontWeight.w700,
@@ -1105,11 +909,13 @@ class _MoreTab extends StatelessWidget {
               OutlinedButton.icon(
                 onPressed: () async {
                   try {
-                    await FirebaseAuth.instance.signOut();
+                    await auth.signOut();
                   } catch (error) {
                     if (!context.mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Unable to sign out: $error')),
+                      const SnackBar(
+                        content: Text('Unable to sign out. Please try again.'),
+                      ),
                     );
                   }
                 },
@@ -1129,231 +935,6 @@ class _MoreTab extends StatelessWidget {
   }
 }
 
-class _ModulePage extends StatelessWidget {
-  const _ModulePage({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    final data =
-        _moduleContent[title] ??
-        const _ModuleContent(
-          icon: Icons.info_outline_rounded,
-          description: 'DairyTrace',
-          items: [],
-        );
-
-    return Scaffold(
-      backgroundColor: _pageBackground,
-      appBar: AppBar(title: Text(title), backgroundColor: _pageBackground),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-        children: [
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: const Color(0xFFE7EEEA)),
-            ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: const Color(0xFFE3F5EB),
-                  child: Icon(data.icon, color: _green),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    data.description,
-                    style: const TextStyle(
-                      color: _deepGreen,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          if (title == 'Reports')
-            const _ReportsSummary()
-          else if (title == 'Reconciliation')
-            const _ReconciliationSummary()
-          else if (title == 'Quality Tests')
-            const _QualitySummary()
-          else if (title == 'Collections')
-            const _CollectionsSummary()
-          else
-            ...data.items.map(
-              (item) => _ModuleListTile(
-                title: item.$1,
-                subtitle: item.$2,
-                icon: item.$3,
-                trailing: item.$4,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ModuleContent {
-  const _ModuleContent({
-    required this.icon,
-    required this.description,
-    required this.items,
-  });
-
-  final IconData icon;
-  final String description;
-  final List<(String, String, IconData, String?)> items;
-}
-
-const _moduleContent = <String, _ModuleContent>{
-  'Quality Tests': _ModuleContent(
-    icon: Icons.science_outlined,
-    description: 'Monitor milk quality and test results.',
-    items: [
-      (
-        'No test records',
-        'Quality test history will show here.',
-        Icons.biotech_outlined,
-        null,
-      ),
-    ],
-  ),
-  'Reconciliation': _ModuleContent(
-    icon: Icons.account_balance_wallet_outlined,
-    description: 'Review collection totals and farmer payouts.',
-    items: [
-      (
-        'Current period',
-        'No payout records available yet.',
-        Icons.receipt_long_outlined,
-        null,
-      ),
-    ],
-  ),
-  'Disputes': _ModuleContent(
-    icon: Icons.gavel_rounded,
-    description: 'Review and resolve collection disputes.',
-    items: [
-      (
-        'No open disputes',
-        'New dispute reports will appear here.',
-        Icons.check_circle_outline,
-        'Resolved',
-      ),
-    ],
-  ),
-  'Reports': _ModuleContent(
-    icon: Icons.bar_chart_rounded,
-    description: 'View collection and quality summaries.',
-    items: [],
-  ),
-  'Notifications': _ModuleContent(
-    icon: Icons.notifications_none_rounded,
-    description: 'Updates about DairyTrace activity.',
-    items: [
-      (
-        'You are all caught up',
-        'New notifications will appear here.',
-        Icons.done_all_rounded,
-        null,
-      ),
-    ],
-  ),
-  'Settings': _ModuleContent(
-    icon: Icons.settings_outlined,
-    description: 'Manage your DairyTrace account.',
-    items: [
-      (
-        'Account',
-        'Signed in with your Firebase account.',
-        Icons.person_outline,
-        null,
-      ),
-      (
-        'Privacy',
-        'Your collection records are protected.',
-        Icons.lock_outline,
-        null,
-      ),
-      ('App version', 'DairyTrace mobile', Icons.phone_android_outlined, null),
-    ],
-  ),
-  'Help & Support': _ModuleContent(
-    icon: Icons.help_outline_rounded,
-    description: 'Support for your dairy collection workflow.',
-    items: [
-      (
-        'Need help?',
-        'Contact your DairyTrace administrator.',
-        Icons.support_agent,
-        null,
-      ),
-    ],
-  ),
-  'About': _ModuleContent(
-    icon: Icons.info_outline_rounded,
-    description: 'DairyTrace helps cooperatives manage transparent milk collection and traceability.',
-    items: [
-      (
-        'DairyTrace',
-        'Trace · Trust · Together',
-        Icons.water_drop_outlined,
-        null,
-      ),
-    ],
-  ),
-};
-
-class _CollectionsSummary extends StatelessWidget {
-  const _CollectionsSummary();
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: CollectionService().watchCollections(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) return const _LoadError();
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const _LoadingCard();
-        }
-        if (snapshot.data?.docs.isEmpty ?? true) {
-          return const _EmptyCard(
-            icon: Icons.water_drop_outlined,
-            title: 'No collections yet',
-            message: 'Record a collection to start building your history.',
-          );
-        }
-        return Column(
-          children: snapshot.data!.docs.map((doc) {
-            final item = doc.data();
-            return _ActivityTile(
-              title: item['farmerName'] as String? ?? 'Farmer',
-              subtitle: 'Milk collection',
-              trailing:
-                  '${((item['quantityLitres'] as num?) ?? 0).toStringAsFixed(1)} L',
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) =>
-                      _CollectionDetailsPage(id: doc.id, collection: item),
-                ),
-              ),
-            );
-          }).toList(),
-        );
-      },
-    );
-  }
-}
-
 class _CollectionDetailsPage extends StatelessWidget {
   const _CollectionDetailsPage({required this.id, required this.collection});
 
@@ -1364,9 +945,9 @@ class _CollectionDetailsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final date = collection['collectionDate'] as Timestamp?;
     final quantity = (collection['quantityLitres'] as num?) ?? 0;
-    final fat = collection['fatPercent'] as num?;
-    final snf = collection['snfPercent'] as num?;
-    final temperature = collection['temperatureC'] as num?;
+    final fat = collection['fat'] as num?;
+    final snf = collection['snf'] as num?;
+    final temperature = collection['temperature'] as num?;
 
     return Scaffold(
       backgroundColor: _pageBackground,
@@ -1413,11 +994,19 @@ class _CollectionDetailsPage extends StatelessWidget {
                     ],
                   ),
                 ),
-                const _StatusPill(text: 'Recorded'),
+                _QualityPill(
+                  status: collection['qualityStatus'] as String? ?? 'UNKNOWN',
+                ),
               ],
             ),
           ),
           const SizedBox(height: 14),
+          _DetailRow(
+            label: 'Centre',
+            value:
+                collection['centerName'] as String? ??
+                'Legacy record · not linked',
+          ),
           _DetailRow(
             label: 'Farmer',
             value: collection['farmerName'] as String? ?? 'Unknown',
@@ -1454,6 +1043,8 @@ class _CollectionDetailsPage extends StatelessWidget {
                 ? 'Not recorded'
                 : '${temperature.toStringAsFixed(1)} °C',
           ),
+          const SizedBox(height: 16),
+          _CollectionActions(id: id, collection: collection),
           if ((collection['notes'] as String?)?.isNotEmpty == true) ...[
             const SizedBox(height: 12),
             const Text(
@@ -1476,274 +1067,53 @@ class _CollectionDetailsPage extends StatelessWidget {
   }
 }
 
-class _QualitySummary extends StatelessWidget {
-  const _QualitySummary();
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: CollectionService().watchCollections(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) return const _LoadError();
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const _LoadingCard();
-        }
-        final tested = (snapshot.data?.docs ?? []).where((doc) {
-          final data = doc.data();
-          return data['fatPercent'] != null ||
-              data['snfPercent'] != null ||
-              data['temperatureC'] != null;
-        }).toList();
-        return Column(
-          children: [
-            _SummaryTile(
-              label: 'Quality tests',
-              value: '${tested.length}',
-              icon: Icons.science_outlined,
-            ),
-            const SizedBox(height: 10),
-            if (tested.isEmpty)
-              const _EmptyCard(
-                icon: Icons.verified_outlined,
-                title: 'No test records',
-                message: 'Quality results will appear here when available.',
-              )
-            else
-              ...tested.map((doc) {
-                final data = doc.data();
-                final parameters = <String>[
-                  if (data['fatPercent'] != null)
-                    'Fat ${(data['fatPercent'] as num).toStringAsFixed(1)}%',
-                  if (data['snfPercent'] != null)
-                    'SNF ${(data['snfPercent'] as num).toStringAsFixed(1)}%',
-                  if (data['temperatureC'] != null)
-                    '${(data['temperatureC'] as num).toStringAsFixed(1)} °C',
-                ].join(' · ');
-                return _ActivityTile(
-                  title: data['farmerName'] as String? ?? 'Farmer',
-                  subtitle: parameters,
-                  trailing: 'Recorded',
-                );
-              }),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _ReconciliationSummary extends StatelessWidget {
-  const _ReconciliationSummary();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Column(
-      children: [
-        _SummaryTile(
-          label: 'Pending payouts',
-          value: '0',
-          icon: Icons.payments_outlined,
-        ),
-        SizedBox(height: 10),
-        _EmptyCard(
-          icon: Icons.account_balance_wallet_outlined,
-          title: 'No reconciliation records',
-          message: 'Collection and payout summaries will be listed here.',
-        ),
-      ],
-    );
-  }
-}
-
-class _ReportsSummary extends StatelessWidget {
-  const _ReportsSummary();
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: CollectionService().watchCollections(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) return const _LoadError();
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const _LoadingCard();
-        }
-        final docs = snapshot.data?.docs ?? [];
-        final litres = docs.fold<double>(
-          0,
-          (total, doc) =>
-              total + ((doc.data()['quantityLitres'] as num?)?.toDouble() ?? 0),
-        );
-        final today = DateTime.now();
-        final firstDay = DateTime(
-          today.year,
-          today.month,
-          today.day,
-        ).subtract(const Duration(days: 6));
-        final dailyLitres = List<double>.filled(7, 0);
-        for (final doc in docs) {
-          final timestamp = doc.data()['collectionDate'] as Timestamp?;
-          if (timestamp == null) continue;
-          final date = timestamp.toDate().toLocal();
-          final day = DateTime(
-            date.year,
-            date.month,
-            date.day,
-          ).difference(firstDay).inDays;
-          if (day >= 0 && day < dailyLitres.length) {
-            dailyLitres[day] +=
-                (doc.data()['quantityLitres'] as num?)?.toDouble() ?? 0;
-          }
-        }
-        final maxDailyLitres = dailyLitres.fold<double>(
-          1,
-          (max, value) => value > max ? value : max,
-        );
-        return Column(
-          children: [
-            _SummaryTile(
-              label: 'Total milk collected',
-              value: '${litres.toStringAsFixed(1)} L',
-              icon: Icons.water_drop_outlined,
-            ),
-            const SizedBox(height: 10),
-            _SummaryTile(
-              label: 'Collection records',
-              value: '${docs.length}',
-              icon: Icons.receipt_long_outlined,
-            ),
-            const SizedBox(height: 10),
-            _WeeklyCollectionChart(
-              values: dailyLitres,
-              maximum: maxDailyLitres,
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _WeeklyCollectionChart extends StatelessWidget {
-  const _WeeklyCollectionChart({required this.values, required this.maximum});
-
-  final List<double> values;
-  final double maximum;
-
-  @override
-  Widget build(BuildContext context) {
-    final today = DateTime.now();
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: const Color(0xFFE7EEEA)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Daily collection · last 7 days',
-            style: TextStyle(
-              color: _deepGreen,
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 18),
-          SizedBox(
-            height: 128,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: List<Widget>.generate(values.length, (index) {
-                final day = today.subtract(
-                  Duration(days: values.length - index - 1),
-                );
-                final barHeight = (values[index] / maximum * 88)
-                    .clamp(4.0, 88.0)
-                    .toDouble();
-                return Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      Text(
-                        values[index] == 0
-                            ? ''
-                            : values[index].toStringAsFixed(0),
-                        style: const TextStyle(color: _mutedText, fontSize: 9),
-                      ),
-                      const SizedBox(height: 4),
-                      Container(
-                        height: barHeight,
-                        margin: const EdgeInsets.symmetric(horizontal: 4),
-                        decoration: BoxDecoration(
-                          color: index == values.length - 1
-                              ? _green
-                              : const Color(0xFFBDEBD4),
-                          borderRadius: BorderRadius.circular(5),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        '${day.day}/${day.month}',
-                        style: const TextStyle(color: _mutedText, fontSize: 9),
-                      ),
-                    ],
-                  ),
-                );
-              }),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _SummaryTile extends StatelessWidget {
   const _SummaryTile({
     required this.label,
     required this.value,
     required this.icon,
   });
-
-  final String label;
-  final String value;
+  final String label, value;
   final IconData icon;
-
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: const Color(0xFFE7EEEA)),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            backgroundColor: const Color(0xFFE3F5EB),
-            child: Icon(icon, color: _green),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              label,
-              style: const TextStyle(
-                color: _deepGreen,
-                fontWeight: FontWeight.w600,
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(15),
+      border: Border.all(color: const Color(0xFFE7EEEA)),
+    ),
+    child: Row(
+      children: [
+        CircleAvatar(
+          radius: 18,
+          backgroundColor: const Color(0xFFE3F5EB),
+          child: Icon(icon, color: _green, size: 20),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(color: _mutedText, fontSize: 11),
               ),
-            ),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: _deepGreen,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
           ),
-          Text(
-            value,
-            style: const TextStyle(color: _green, fontWeight: FontWeight.w800),
-          ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
 }
 
 class _ModuleListTile extends StatelessWidget {
@@ -1751,24 +1121,23 @@ class _ModuleListTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.icon,
-    this.trailing,
     this.onTap,
   });
 
   final String title;
   final String subtitle;
   final IconData icon;
-  final String? trailing;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return Card(
       margin: const EdgeInsets.only(bottom: 9),
-      decoration: BoxDecoration(
-        color: Colors.white,
+      color: Colors.white,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: const Color(0xFFE7EEEA)),
+        side: const BorderSide(color: Color(0xFFE7EEEA)),
       ),
       child: ListTile(
         onTap: onTap,
@@ -1788,34 +1157,7 @@ class _ModuleListTile extends StatelessWidget {
           subtitle,
           style: const TextStyle(color: _mutedText, fontSize: 10),
         ),
-        trailing: trailing == null
-            ? const Icon(Icons.chevron_right_rounded, color: _mutedText)
-            : _StatusPill(text: trailing!),
-      ),
-    );
-  }
-}
-
-class _StatusPill extends StatelessWidget {
-  const _StatusPill({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: const Color(0xFFE3F7EB),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(
-          color: _green,
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
-        ),
+        trailing: const Icon(Icons.chevron_right_rounded, color: _mutedText),
       ),
     );
   }
@@ -1970,11 +1312,14 @@ class _DetailRow extends StatelessWidget {
           Expanded(
             child: Text(label, style: const TextStyle(color: _mutedText)),
           ),
-          Text(
-            value,
-            style: const TextStyle(
-              color: _deepGreen,
-              fontWeight: FontWeight.w700,
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              style: const TextStyle(
+                color: _deepGreen,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],
@@ -2022,3 +1367,215 @@ String _monthName(int month) => const [
   'Nov',
   'Dec',
 ][month - 1];
+
+class _InformationPage extends StatelessWidget {
+  const _InformationPage({required this.title});
+  final String title;
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: Text(title)),
+    body: ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        if (title == 'Settings') ...[
+          _DetailRow(
+            label: 'Signed in',
+            value: FirebaseAuth.instance.currentUser?.email ?? '',
+          ),
+          const _DetailRow(label: 'Access', value: 'Your account records'),
+          const _DetailRow(
+            label: 'Quality thresholds',
+            value: 'Demo: Fat 3% · SNF 8% · Max 10°C',
+          ),
+          const _DetailRow(label: 'Pricing', value: 'Not configured'),
+          OutlinedButton(
+            onPressed: () async {
+              try {
+                final email = FirebaseAuth.instance.currentUser?.email;
+                if (email != null) {
+                  await FirebaseAuth.instance.sendPasswordResetEmail(
+                    email: email,
+                  );
+                }
+                if (context.mounted) {
+                  UserFeedback.showInfo(
+                    context,
+                    message: 'Password reset instructions requested. Check your inbox.',
+                  );
+                }
+              } catch (_) {
+                if (context.mounted) {
+                  UserFeedback.showError(
+                    context,
+                    message: 'Unable to send reset email. Try again.',
+                  );
+                }
+              }
+            },
+            child: const Text('Send password reset email'),
+          ),
+        ] else if (title == 'Help & Support') ...[
+          const Text(
+            'Your collection workflow',
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            '1. Register a centre and farmer in Users.\n\n2. Tap + to record quantity and quality readings.\n\n3. Group compatible records in Batches, then record a quality result.\n\n4. Open any collection to report a dispute.\n\n5. Review monthly totals and copy reports as CSV.\n\nIf a save fails, check your connection and ask your project administrator to verify account access and deployed database rules.',
+          ),
+        ] else ...[
+          const Text(
+            'DairyTrace',
+            style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+          ),
+          const Text('Trace · Trust · Together'),
+          const SizedBox(height: 20),
+          const Text(
+            'Version 1.0.0\nMilk collection, quality monitoring and source-to-batch traceability.\n\nQuality thresholds are demonstration values. Reconciliation reports quantity and weighted quality totals; it does not calculate payments.',
+          ),
+        ],
+      ],
+    ),
+  );
+}
+
+class _CollectionActions extends StatefulWidget {
+  const _CollectionActions({required this.id, required this.collection});
+  final String id;
+  final Map<String, dynamic> collection;
+  @override
+  State<_CollectionActions> createState() => _CollectionActionsState();
+}
+
+class _CollectionActionsState extends State<_CollectionActions> {
+  bool busy = false;
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      if (widget.collection['farmerId'] is String)
+        OutlinedButton.icon(
+          icon: const Icon(Icons.person_outline),
+          label: const Text('View Farmer'),
+          onPressed: busy
+              ? null
+              : () async {
+                  setState(() => busy = true);
+                  try {
+                    final service = OperationsService();
+                    final doc = await service.db
+                        .collection('farmers')
+                        .doc(widget.collection['farmerId'] as String)
+                        .get();
+                    if (context.mounted && doc.exists) {
+                      _open(
+                        context,
+                        FarmerProfilePage(
+                          record: OperationalRecord(doc.id, doc.data()!),
+                          service: service,
+                        ),
+                      );
+                    }
+                  } catch (_) {
+                    if (context.mounted) {
+                      UserFeedback.showError(
+                        context,
+                        message: 'Unable to load farmer.',
+                      );
+                    }
+                  } finally {
+                    if (mounted) setState(() => busy = false);
+                  }
+                },
+        ),
+      if (widget.collection['batchId'] is String)
+        OutlinedButton.icon(
+          icon: const Icon(Icons.inventory_2_outlined),
+          label: const Text('View in Batch'),
+          onPressed: busy
+              ? null
+              : () async {
+                  setState(() => busy = true);
+                  try {
+                    final service = OperationsService();
+                    final doc = await service.db
+                        .collection('batches')
+                        .doc(widget.collection['batchId'] as String)
+                        .get();
+                    if (context.mounted && doc.exists) {
+                      _open(
+                        context,
+                        RecordDetailsPage(
+                          record: OperationalRecord(doc.id, doc.data()!),
+                          kind: 'batches',
+                          service: service,
+                        ),
+                      );
+                    }
+                  } catch (_) {
+                    if (context.mounted) {
+                      UserFeedback.showError(
+                        context,
+                        message: 'Unable to load batch.',
+                      );
+                    }
+                  } finally {
+                    if (mounted) setState(() => busy = false);
+                  }
+                },
+        ),
+      OutlinedButton.icon(
+        icon: const Icon(Icons.report_outlined),
+        label: Text(busy ? 'Please wait…' : 'Report an issue'),
+        onPressed: busy
+            ? null
+            : () async {
+                final type = await showDialog<String>(
+                  context: context,
+                  builder: (context) => SimpleDialog(
+                    title: const Text('Issue type'),
+                    children: ['Quantity', 'Quality', 'Other']
+                        .map(
+                          (t) => SimpleDialogOption(
+                            onPressed: () => Navigator.pop(context, t),
+                            child: Text(t),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                );
+                if (type == null || !context.mounted) return;
+                final notes = await _askText(
+                  context,
+                  'Describe the issue',
+                  min: 5,
+                );
+                if (notes == null || !mounted) return;
+                setState(() => busy = true);
+                try {
+                  await OperationsService().raiseDispute(
+                    widget.id,
+                    type,
+                    notes,
+                  );
+                  if (context.mounted) {
+                    UserFeedback.showSuccess(
+                      context,
+                      message: 'Dispute raised. Track it in Disputes.',
+                    );
+                  }
+                } catch (_) {
+                  if (context.mounted) {
+                    UserFeedback.showError(
+                      context,
+                      message: 'Unable to report issue. Please retry.',
+                    );
+                  }
+                } finally {
+                  if (mounted) setState(() => busy = false);
+                }
+              },
+      ),
+    ],
+  );
+}

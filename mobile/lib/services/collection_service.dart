@@ -5,12 +5,12 @@ import '../models/collection.dart';
 import '../utils/quality_checker.dart';
 
 class CollectionService {
-  CollectionService({FirebaseFirestore? firestore})
-    : _collections = (firestore ?? FirebaseFirestore.instance).collection(
-        'collections',
-      );
+  CollectionService({FirebaseFirestore? firestore, FirebaseAuth? auth})
+    : _firestore = firestore ?? FirebaseFirestore.instance,
+      _auth = auth ?? FirebaseAuth.instance;
 
-  final CollectionReference<Map<String, dynamic>> _collections;
+  final FirebaseFirestore _firestore;
+  final FirebaseAuth _auth;
 
   CollectionReference<Map<String, dynamic>> get _collections =>
       _firestore.collection('collections');
@@ -18,12 +18,14 @@ class CollectionService {
   Future<String> addCollection({
     required String farmerName,
     required double quantityLitres,
-    required DateTime collectionDate,
-    required String session,
-    double? fatPercent,
-    double? snfPercent,
-    double? temperatureC,
-    String? notes,
+    required double fat,
+    required double snf,
+    required double temperature,
+    String? farmerId,
+    String? centerId,
+    String? session,
+    DateTime? occurredAt,
+    String notes = '',
   }) async {
     final user = _auth.currentUser;
 
@@ -31,23 +33,85 @@ class CollectionService {
       throw StateError('Please sign in before recording a collection.');
     }
 
-    final data = <String, dynamic>{
-      'farmerName': farmerName.trim(),
-      'quantityLitres': quantityLitres,
-      'collectionDate': Timestamp.fromDate(collectionDate),
-      'session': session,
-      'createdAt': FieldValue.serverTimestamp(),
-      'createdBy': user.uid,
-    };
+    final normalizedName = farmerName.trim();
 
-    if (fatPercent != null) data['fatPercent'] = fatPercent;
-    if (snfPercent != null) data['snfPercent'] = snfPercent;
-    if (temperatureC != null) data['temperatureC'] = temperatureC;
-    if (notes != null && notes.trim().isNotEmpty) {
-      data['notes'] = notes.trim();
+    if (normalizedName.length < 2) {
+      throw ArgumentError('Farmer name must contain at least 2 characters.');
     }
 
-    await _collections.add(data);
+    if (!quantityLitres.isFinite || quantityLitres <= 0) {
+      throw ArgumentError('Milk quantity must be greater than zero.');
+    }
+
+    final quality = QualityChecker.check(
+      fat: fat,
+      snf: snf,
+      temperature: temperature,
+    );
+    final collection = Collection(
+      id: '',
+      farmerName: normalizedName,
+      quantityLitres: quantityLitres,
+      collectionDate: null,
+      createdBy: user.uid,
+      fat: fat,
+      snf: snf,
+      temperature: temperature,
+      qualityStatus: quality.status,
+    );
+
+    if (farmerId == null) {
+      final document = await _collections.add(collection.toFirestore());
+      return document.id;
+    }
+    if (centerId == null ||
+        !['MORNING', 'EVENING'].contains(session) ||
+        occurredAt == null ||
+        occurredAt.isAfter(DateTime.now().add(const Duration(minutes: 1))) ||
+        occurredAt.year < 2020 ||
+        notes.trim().length > 1000) {
+      throw ArgumentError(
+        'Check the collection centre, date, session and notes.',
+      );
+    }
+    final ref = _collections.doc();
+    await _firestore.runTransaction((tx) async {
+      final farmer = await tx.get(
+        _firestore.collection('farmers').doc(farmerId),
+      );
+      final center = await tx.get(
+        _firestore.collection('collectionCenters').doc(centerId),
+      );
+      if (farmer.data()?['createdBy'] != user.uid ||
+          farmer.data()?['status'] != 'ACTIVE' ||
+          farmer.data()?['centerId'] != centerId ||
+          center.data()?['createdBy'] != user.uid ||
+          center.data()?['status'] != 'ACTIVE') {
+        throw StateError('Select an active farmer and centre you can access.');
+      }
+      tx.set(ref, {
+        ...collection.toFirestore(),
+        'farmerId': farmerId,
+        'centerId': centerId,
+        'farmerName': farmer.data()!['name'],
+        'centerName': center.data()!['name'],
+        'session': session,
+        'collectionDate': Timestamp.fromDate(occurredAt),
+        'dayKey':
+            '${occurredAt.year}-${occurredAt.month.toString().padLeft(2, '0')}-${occurredAt.day.toString().padLeft(2, '0')}',
+        'notes': notes.trim(),
+      });
+    });
+    return ref.id;
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> watchDocuments() {
+    final user = _auth.currentUser;
+    if (user == null) throw StateError('Please sign in to view collections.');
+    return _collections
+        .where('createdBy', isEqualTo: user.uid)
+        .orderBy('collectionDate', descending: true)
+        .snapshots();
   }
 
   Stream<List<Collection>> watchCollections() {
