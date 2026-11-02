@@ -57,3 +57,21 @@ String? validateMilkQuantity(String? value) {
 
   return null;
 }
+
+String? validateQualityReading(
+  String? value, {
+  required String label,
+  bool percentage = false,
+}) {
+  if (value == null || value.trim().isEmpty) return '$label is required.';
+  final reading = double.tryParse(value.trim());
+  if (reading == null ||
+      !reading.isFinite ||
+      reading < 0 ||
+      (percentage && reading > 100)) {
+    return percentage
+        ? 'Enter $label between 0 and 100.'
+        : 'Enter a valid non-negative $label.';
+  }
+  return null;
+}

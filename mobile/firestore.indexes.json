@@ -1,0 +1,11 @@
+{
+  "indexes": [{
+    "collectionGroup": "collections",
+    "queryScope": "COLLECTION",
+    "fields": [
+      {"fieldPath": "createdBy", "order": "ASCENDING"},
+      {"fieldPath": "collectionDate", "order": "DESCENDING"}
+    ]
+  }],
+  "fieldOverrides": []
+}

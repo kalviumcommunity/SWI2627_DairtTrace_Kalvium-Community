@@ -120,6 +120,8 @@ For detailed instructions, refer to [frontend-legacy/README.md](./frontend-legac
 ## 👥 Team
 
 - **Edha Singh** — Project Lead / Backend
-- **Kartik** — Team Member
+- **Kartik** — Team Member 
 - **Sanskriti** — Team Member
 
+
+**Digital Milk Collection, Quality Monitoring & Batch Traceability Platform**

@@ -1,4 +1,3 @@
-
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -47,10 +46,7 @@ void main() {
         find.byType(TextFormField).at(0),
         'farmer@example.com',
       );
-      await tester.enterText(
-        find.byType(TextFormField).at(1),
-        'password',
-      );
+      await tester.enterText(find.byType(TextFormField).at(1), 'password');
       await tester.tap(find.text('Sign In'));
       await tester.pumpAndSettle();
 
@@ -83,10 +79,7 @@ void main() {
         find.byType(TextFormField).at(0),
         'farmer@example.com',
       );
-      await tester.enterText(
-        find.byType(TextFormField).at(1),
-        'password',
-      );
+      await tester.enterText(find.byType(TextFormField).at(1), 'password');
       await tester.tap(find.text('Sign In'));
       await tester.pumpAndSettle();
 
@@ -110,10 +103,7 @@ void main() {
         find.byType(TextFormField).at(0),
         'farmer@example.com',
       );
-      await tester.enterText(
-        find.byType(TextFormField).at(1),
-        'password',
-      );
+      await tester.enterText(find.byType(TextFormField).at(1), 'password');
       await tester.tap(find.text('Sign In'));
       await tester.pumpAndSettle();
 
@@ -164,13 +154,15 @@ void main() {
       tester,
     ) async {
       final service = _MockCollectionService();
-      when(
-        () => service.watchCollections(),
-      ).thenAnswer((_) => Stream<List<Collection>>.value([]));
+      when(() => service.watchCollections())
+          .thenAnswer((_) => Stream<List<Collection>>.value([]));
       when(
         () => service.addCollection(
           farmerName: any(named: 'farmerName'),
           quantityLitres: any(named: 'quantityLitres'),
+          fat: any(named: 'fat'),
+          snf: any(named: 'snf'),
+          temperature: any(named: 'temperature'),
         ),
       ).thenThrow(
         FirebaseException(
@@ -187,6 +179,9 @@ void main() {
 
       await tester.enterText(find.byType(TextFormField).at(0), 'Farmer Name');
       await tester.enterText(find.byType(TextFormField).at(1), '12.5');
+      await tester.enterText(find.byType(TextFormField).at(2), '4');
+      await tester.enterText(find.byType(TextFormField).at(3), '8.5');
+      await tester.enterText(find.byType(TextFormField).at(4), '6');
       await tester.ensureVisible(find.text('Save Collection'));
       await tester.tap(find.text('Save Collection'));
       await tester.pumpAndSettle();
@@ -200,18 +195,19 @@ void main() {
           .toList();
       expect(fields[0].controller?.text, 'Farmer Name');
       expect(fields[1].controller?.text, '12.5');
+      expect(fields[2].controller?.text, '4');
+      expect(fields[3].controller?.text, '8.5');
+      expect(fields[4].controller?.text, '6');
       expect(find.text('Internal Firestore details'), findsNothing);
     });
 
     testWidgets('notifies the user when sign-out fails', (tester) async {
       final auth = _MockFirebaseAuth();
       final service = _MockCollectionService();
-      when(
-        () => service.watchCollections(),
-      ).thenAnswer((_) => Stream<List<Collection>>.value([]));
-      when(
-        () => auth.signOut(),
-      ).thenThrow(StateError('internal sign-out details'));
+      when(() => service.watchCollections())
+          .thenAnswer((_) => Stream<List<Collection>>.value([]));
+      when(() => auth.signOut())
+          .thenThrow(StateError('internal sign-out details'));
 
       await tester.pumpWidget(
         MaterialApp(
@@ -245,15 +241,14 @@ void main() {
           ),
         ]),
       );
-      when(
-        () => service.deleteCollection(collectionId: 'collection-1'),
-      ).thenThrow(
-        FirebaseException(
-          plugin: 'cloud_firestore',
-          code: 'permission-denied',
-          message: 'Internal Firestore details',
-        ),
-      );
+      when(() => service.deleteCollection(collectionId: 'collection-1'))
+          .thenThrow(
+            FirebaseException(
+              plugin: 'cloud_firestore',
+              code: 'permission-denied',
+              message: 'Internal Firestore details',
+            ),
+          );
 
       await tester.pumpWidget(
         MaterialApp(home: MilkCollectionPage(collectionService: service)),
@@ -288,9 +283,8 @@ void main() {
           ),
         ]),
       );
-      when(
-        () => service.deleteCollection(collectionId: 'collection-1'),
-      ).thenThrow(StateError('Internal deletion details'));
+      when(() => service.deleteCollection(collectionId: 'collection-1'))
+          .thenThrow(StateError('Internal deletion details'));
 
       await tester.pumpWidget(
         MaterialApp(home: MilkCollectionPage(collectionService: service)),
