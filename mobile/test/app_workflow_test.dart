@@ -59,7 +59,9 @@ void main() {
         'createdBy': 'owner',
       });
     }
-    final today = DateTime.now();
+    // Keep report fixtures within one month, including at month boundaries.
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, 15);
     for (var i = 0; i < 6; i++) {
       await db.collection('collections').doc('collection-$i').set({
         'farmerId': i % 2 == 0 ? 'farmer' : 'farmer2',
