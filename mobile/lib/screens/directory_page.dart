@@ -13,6 +13,7 @@ class DirectoryPage extends StatefulWidget {
 class _DirectoryPageState extends State<DirectoryPage> {
   late final DirectoryService _service = widget.service ?? DirectoryService();
   late Stream<List<DirectoryEntry>> _centers = _service.watchCenters();
+  late Stream<List<DirectoryEntry>> _farmerCenters = _service.watchCenters();
   late Stream<List<DirectoryEntry>> _farmers = _service.watchFarmers();
   String _search = '';
 
@@ -21,6 +22,7 @@ class _DirectoryPageState extends State<DirectoryPage> {
       _farmers = _service.watchFarmers();
     } else {
       _centers = _service.watchCenters();
+      _farmerCenters = _service.watchCenters();
     }
   });
 
@@ -223,7 +225,7 @@ class _DirectoryPageState extends State<DirectoryPage> {
   }
 
   Widget _farmerTab() => StreamBuilder<List<DirectoryEntry>>(
-    stream: _centers,
+    stream: _farmerCenters,
     builder: (context, centersSnapshot) {
       final centers = (centersSnapshot.data ?? [])
           .where((entry) => entry.status == 'ACTIVE')
@@ -234,10 +236,14 @@ class _DirectoryPageState extends State<DirectoryPage> {
             padding: const EdgeInsets.all(16),
             child: FilledButton.icon(
               onPressed: centersSnapshot.hasData
-                  ? () => _add(true, centers)
+                  ? () => _add(centers.isNotEmpty, centers)
                   : null,
               icon: const Icon(Icons.add),
-              label: const Text('Register Farmer'),
+              label: Text(
+                centers.isEmpty
+                    ? 'Add a centre to register farmers'
+                    : 'Register Farmer',
+              ),
             ),
           ),
           if (centersSnapshot.hasError)
